@@ -1,0 +1,1 @@
+# WebScrappin de Novelas Ligeras en español o traducidas al español usango google translate y convertidas en epub

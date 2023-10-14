@@ -1,0 +1,11 @@
+pandas
+beautifulsoup4
+undetected_chromedriver
+selenium
+webdriver_manager
+googletrans
+EbookLib
+urllib3
+icrawler
+translators
+Pillow
