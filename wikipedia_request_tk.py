@@ -42,6 +42,7 @@ def scrape_wikipedia():
         content = soup.find(id='mw-content-text')
         paragraphs_and_h2s = content.find_all(['p', 'li', 'h2'])
 
+        result_text.config(state=tk.NORMAL)
         for tag in paragraphs_and_h2s:
             if tag.name == 'p':
                 result_text.insert(tk.END, tag.get_text() + "\n")
@@ -49,9 +50,9 @@ def scrape_wikipedia():
                 result_text.insert(tk.END, tag.find('span').get_text() + '\n')
             elif tag.name == 'li':
                 result_text.insert(tk.END, '- ' + tag.get_text() + "\n")
-
+        result_text.config(state=tk.DISABLED)
     except Exception as e:
-        result_label.config(text=f"Ocurrió un error: {str(e}")
+        result_label.config(text=f"Ocurrió un error: {str(e)}")
 
 # Crear la ventana principal
 window = tk.Tk()
@@ -59,7 +60,7 @@ window.title("Web Scraping de Wikipedia")
 
 # Crear y configurar los widgets
 label_url = tk.Label(window, text="Ingrese la URL de Wikipedia:")
-entry_url = tk.Entry(window)
+entry_url = tk.Entry(window,width=100)
 scrape_button = tk.Button(window, text="Scrapear", command=scrape_wikipedia)
 result_label = tk.Label(window, text="", wraplength=400)
 result_text = tk.Text(window, state=tk.DISABLED, wrap=tk.WORD)
