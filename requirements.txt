@@ -9,3 +9,4 @@ urllib3
 icrawler
 translators
 Pillow
+flet
