@@ -1,8 +1,9 @@
 import os
 import json
-import requests
+from selenium import webdriver
 import tkinter as tk
 from bs4 import BeautifulSoup as bs
+
 
 def scrape_wikipedia():
     url = entry_url.get()
@@ -10,14 +11,17 @@ def scrape_wikipedia():
     if "wikipedia.org" not in url:
         result_label.config(text="La URL no es de Wikipedia. Proporcione una URL de Wikipedia válida.")
         return
+    driver = webdriver.Chrome()
 
     try:
         # Realizar la solicitud HTTP a la URL
-        response = requests.get(url)
-        response.raise_for_status()
+        driver.get(url)
 
-        # Analizar el HTML de la página
-        soup = bs(response.text, 'html.parser')
+        # time.sleep(2)
+
+        html = driver.page_source
+        soup = bs(html, 'html.parser')
+        driver.close()
 
         # Obtener el título de la página
         titulo = soup.find('h1', id='firstHeading').get_text()
@@ -42,6 +46,7 @@ def scrape_wikipedia():
         content = soup.find(id='mw-content-text')
         paragraphs_and_h2s = content.find_all(['p', 'li', 'h2'])
 
+        result_text.config(state=tk.NORMAL)
         for tag in paragraphs_and_h2s:
             if tag.name == 'p':
                 result_text.insert(tk.END, tag.get_text() + "\n")
@@ -49,9 +54,11 @@ def scrape_wikipedia():
                 result_text.insert(tk.END, tag.find('span').get_text() + '\n')
             elif tag.name == 'li':
                 result_text.insert(tk.END, '- ' + tag.get_text() + "\n")
+        result_text.config(state=tk.DISABLED)
 
     except Exception as e:
-        result_label.config(text=f"Ocurrió un error: {str(e}")
+        result_label.config(text=f"Ocurrió un error: {str(e)}")
+
 
 # Crear la ventana principal
 window = tk.Tk()
@@ -59,20 +66,17 @@ window.title("Web Scraping de Wikipedia con Tkinter")
 
 # Crear y configurar los widgets
 label_url = tk.Label(window, text="Ingrese la URL de Wikipedia:")
-entry_url = tk.Entry(window)
+entry_url = tk.Entry(window, width=100)
 scrape_button = tk.Button(window, text="Scrapear", command=scrape_wikipedia)
-result_label = tk.Label(window, text="")
-result_text = tk.Text(window, wrap=tk.WORD, state=tk.DISABLED, height=15, width=50)
-scrollbar = tk.Scrollbar(window, command=result_text.yview)
-result_text.config(yscrollcommand=scrollbar.set)
+result_label = tk.Label(window, text="", wraplength=400)
+result_text = tk.Text(window, state=tk.DISABLED, wrap=tk.WORD)
 
 # Colocar los widgets en la ventana
-label_url.grid(row=0, column=0, padx=10, pady=10, sticky='w')
-entry_url.grid(row=0, column=1, padx=10, pady=10)
-scrape_button.grid(row=1, column=0, columnspan=2, pady=10)
-result_label.grid(row=2, column=0, columnspan=2)
-result_text.grid(row=3, column=0, columnspan=2, padx=10)
-scrollbar.grid(row=3, column=2, sticky='ns')
+label_url.pack()
+entry_url.pack()
+scrape_button.pack()
+result_label.pack()
+result_text.pack()
 
 # Iniciar la aplicación
 window.mainloop()
