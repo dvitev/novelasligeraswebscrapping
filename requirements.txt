@@ -10,5 +10,4 @@ icrawler
 translators
 Pillow
 flet
-distutils
 pyinstaller
