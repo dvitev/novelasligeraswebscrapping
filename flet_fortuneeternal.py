@@ -23,7 +23,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 
 def main(page):
     page.title = "Fortune Eternal"
-    
+
     def btn_guardar_epub_click(e):
         global df_contentchapters
         global df_infobox
@@ -129,26 +129,28 @@ def main(page):
             op.add_argument('--no-sandbox')
             op.headless = True
             driver = webdriver.Chrome(service=servicio, options=op)
-            driver.minimize_window()
+            # driver.minimize_window()
 
-            for index in range(len(df_listchapters), -1, -1):
+            for index in range(len(df_listchapters), 0, -1):
+                print(df_listchapters['nombre'][index-1])
                 contenido_p = []
                 driver.get(df_listchapters['urls'][index-1])
-                time.sleep(2)
+                time.sleep(5)
                 html = driver.page_source
                 soup = bs(html, 'html.parser')
                 contentcapter = soup.find('div', class_='entry-content_wrap')
                 contentcapter_p = contentcapter.find_all('p')
-                for p in contentcapter_p:
+                for idx,p in enumerate(contentcapter_p):
                     contenido_p.append(ts.translate_text(
                         p.get_text(), to_language='es'))
+                    print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
                 # print(contenido_p)
                 contenido_p = ''.join([f"<p>{x}</p>" for x in contenido_p])
                 chaptercontent_list.append(
                     [df_listchapters['nombre'][index-1], contenido_p])
-                print(df_listchapters['nombre'][index-1])
-                # datatable.rows[len(df_listchapters)-index].   .selected=True
-                # page.update()
+                
+                datatable.rows[len(df_listchapters['nombre'])-index].selected=True
+                page.update()
             driver.close()
             btn_guardar_csv.visible = True
             df_contentchapters = pd.DataFrame(
@@ -237,7 +239,7 @@ def main(page):
                 df_listchapters = pd.DataFrame(
                     chapters_list, columns=['nombre', 'urls'])
                 # print(df_listchapters)
-                for index in range(len(df_listchapters), -1, -1):
+                for index in range(len(df_listchapters), 0, -1):
                     rows_listchapters.append(ft.DataRow(cells=[
                         ft.DataCell(
                             ft.Text(df_listchapters['nombre'][index-1])),
@@ -280,13 +282,18 @@ def main(page):
         "Obtener Datos!", on_click=btn_obtenerdatos_click)
     btn_obtenercapitulos = ft.ElevatedButton(
         "Obtener Capitulos", on_click=btn_obtenercapitulos_click, visible=False)
-    datatable  = ft.DataTable(
-                        columns=[
-                            ft.DataColumn(ft.Text("Capitulos")),
-                            ft.DataColumn(ft.Text("Urls")),
-                        ],
-                        rows=rows_listchapters,
-                    )
+    datatable = ft.DataTable(
+        show_checkbox_column=True,
+        border=ft.border.all(2),
+        border_radius=ft.border_radius.all(10),
+        vertical_lines=ft.border.BorderSide(1, ft.colors.BLACK),
+        horizontal_lines=ft.border.BorderSide(1, ft.colors.BLACK),
+        columns=[
+            ft.DataColumn(ft.Text("Capitulos")),
+            ft.DataColumn(ft.Text("Urls")),
+        ],
+        rows=rows_listchapters,
+    )
     page.add(
         txt_name,
         ft.Row(controls=[
