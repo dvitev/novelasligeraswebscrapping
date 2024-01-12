@@ -125,6 +125,7 @@ def main(page):
     def btn_obtenercapitulos_click(e):
         global df_listchapters
         global df_contentchapters
+        global tituloarchivo
         try:
             servicio = Service(
                 executable_path=ChromeDriverManager().install())
