@@ -16,6 +16,7 @@ from icrawler.builtin import GoogleImageCrawler
 from ebooklib import epub
 import uuid
 import sys
+from unsync import unsync
 
 sys.stdin.reconfigure(encoding='utf-8')
 sys.stdout.reconfigure(encoding='utf-8')
@@ -48,7 +49,7 @@ def main(page):
 
         book = epub.EpubBook()
         # set metadata
-        book.set_identifier(str(uuid.uuid5()))
+        book.set_identifier(str(uuid.uuid4()))
         imgenportada = ''.join([x for x in dirimgs if tituloarchivo in x])
         if imgenportada != '':
             book.set_cover('cover.jpg',
@@ -115,7 +116,15 @@ def main(page):
             [x for x in titulo_datos if x.isalpha() or x == ' ']).replace(' ', '_')
         df_contentchapters.to_csv(tituloarchivo+'.csv', index=None)
 
-    def btn_obtenercapitulos_click(e):
+
+async def traducir(texto):
+    print('traduciendo')
+    try:
+        return ts.translate_text(texto, translator='google', to_language='es')
+    except Exception as e:
+        return ts.translate_text(texto, translator='bing', to_language='es')
+
+    async def btn_obtenercapitulos_click(e):
         global df_listchapters
         global df_contentchapters
         try:
@@ -127,31 +136,37 @@ def main(page):
             op.add_argument('--disable-gpu')
             # Evitar errores en algunos sistemas
             op.add_argument('--no-sandbox')
+            op.add_argument('--ignore-certificate-errors')
+            op.add_argument('--ssl-protocol=any')
             op.headless = True
-            driver = webdriver.Chrome(service=servicio, options=op)
-            # driver.minimize_window()
-
             for index in range(len(df_listchapters), 0, -1):
+                driver = webdriver.Chrome(service=servicio, options=op)
+                # driver.minimize_window()
                 print(df_listchapters['nombre'][index-1])
                 contenido_p = []
                 driver.get(df_listchapters['urls'][index-1])
                 time.sleep(5)
-                html = driver.page_source
-                soup = bs(html, 'html.parser')
+                soup = bs(driver.page_source, 'html.parser')
+                driver.close()
                 contentcapter = soup.find('div', class_='entry-content_wrap')
                 contentcapter_p = contentcapter.find_all('p')
-                for idx,p in enumerate(contentcapter_p):
-                    contenido_p.append(ts.translate_text(
-                        p.get_text(), to_language='es'))
+                for idx, p in enumerate(contentcapter_p):
+                    if p.get_text() is not None:
+                        texto = await traducir(p.get_text())
+                        print(texto)
+                        contenido_p.append(texto)
+
                     print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
+                    time.sleep(0.3)
                 # print(contenido_p)
                 contenido_p = ''.join([f"<p>{x}</p>" for x in contenido_p])
                 chaptercontent_list.append(
                     [df_listchapters['nombre'][index-1], contenido_p])
-                
-                datatable.rows[len(df_listchapters['nombre'])-index].selected=True
+
+                datatable.rows[len(df_listchapters['nombre']
+                                   )-index].selected = True
                 page.update()
-            driver.close()
+
             btn_guardar_csv.visible = True
             df_contentchapters = pd.DataFrame(
                 chaptercontent_list, columns=['nombre', 'contenido'])
@@ -191,13 +206,15 @@ def main(page):
                 op.add_argument('--disable-gpu')
                 # Evitar errores en algunos sistemas
                 op.add_argument('--no-sandbox')
-                op.headless = True
+                op.add_argument('--ignore-certificate-errors')
+                op.add_argument('--ssl-protocol=any')
+                # op.headless = True
                 driver = webdriver.Chrome(service=servicio, options=op)
                 driver.minimize_window()
                 # Realizar la solicitud HTTP a la URL
                 driver.get(txt_name.value)
 
-                time.sleep(10)
+                time.sleep(5)
 
                 html = driver.page_source
                 soup = bs(html, 'html.parser')
@@ -224,7 +241,7 @@ def main(page):
                 print(df_infobox)
                 #
                 resumen = ts.translate_text(soup.find(
-                    'div', class_='summary__content').get_text().strip().rstrip(), to_language='es')
+                    'div', class_='summary__content').get_text().strip().rstrip(), translator='google', to_language='es')
                 data_obtenida.controls.append(ft.Text(f"{resumen}"))
                 print(resumen)
 
