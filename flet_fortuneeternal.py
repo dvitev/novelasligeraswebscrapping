@@ -16,7 +16,7 @@ from icrawler.builtin import GoogleImageCrawler
 from ebooklib import epub
 import uuid
 import sys
-from unsync import unsync
+import asyncio
 
 sys.stdin.reconfigure(encoding='utf-8')
 sys.stdout.reconfigure(encoding='utf-8')
@@ -24,6 +24,8 @@ sys.stdout.reconfigure(encoding='utf-8')
 
 def main(page):
     page.title = "Fortune Eternal"
+    tituloarchivo = ''
+    titulo_datos = ''
 
     def btn_guardar_epub_click(e):
         global df_contentchapters
@@ -102,7 +104,8 @@ def main(page):
         # print(sp)
         book.spine = sp
         # write to the file
-        epub.write_epub(tituloarchivo+'.epub', book, {})
+        epub.write_epub(os.path.join(
+            path, 'epub', tituloarchivo+'.epub'), book, {})
         # print(dFrame)
         print('archivo epub de ', tituloarchivo, ' creado')
 
@@ -112,19 +115,12 @@ def main(page):
         dir = os.listdir(path=path)
         if 'completes' not in dir:
             os.mkdir(os.path.join(path, 'completes'))
-        tituloarchivo = os.path.join(path, 'completes')+''.join(
-            [x for x in titulo_datos if x.isalpha() or x == ' ']).replace(' ', '_')
-        df_contentchapters.to_csv(tituloarchivo+'.csv', index=None)
+
+        df_contentchapters.to_csv(os.path.join(
+            path, 'completes', tituloarchivo+'.csv'), index=None)
 
 
-async def traducir(texto):
-    print('traduciendo')
-    try:
-        return ts.translate_text(texto, translator='google', to_language='es')
-    except Exception as e:
-        return ts.translate_text(texto, translator='bing', to_language='es')
-
-    async def btn_obtenercapitulos_click(e):
+    def btn_obtenercapitulos_click(e):
         global df_listchapters
         global df_contentchapters
         try:
@@ -152,7 +148,10 @@ async def traducir(texto):
                 contentcapter_p = contentcapter.find_all('p')
                 for idx, p in enumerate(contentcapter_p):
                     if p.get_text() is not None:
-                        texto = await traducir(p.get_text())
+                        try:
+                            texto = ts.translate_text(p.get_text(), translator='google', to_language='es')
+                        except Exception as e:
+                            texto = ts.translate_text(p.get_text(), translator='bing', to_language='es')
                         print(texto)
                         contenido_p.append(texto)
 
@@ -165,6 +164,7 @@ async def traducir(texto):
 
                 datatable.rows[len(df_listchapters['nombre']
                                    )-index].selected = True
+                # df_listchapters.to_csv(os.path.join(os.getcwd(),'chapters',tituloarchivo+'.csv'),index=None)
                 page.update()
 
             btn_guardar_csv.visible = True
@@ -184,6 +184,7 @@ async def traducir(texto):
         page.update()
         global df_infobox
         global titulo_datos
+        global tituloarchivo
         global df_listchapters
         global resumen
         if not txt_name.value:
@@ -226,6 +227,8 @@ async def traducir(texto):
 
                 titulo_datos = ' '.join(
                     [x for x in titulo_h1.split() if x.lower() != 'raw' and x.lower() != 'novel'])
+                tituloarchivo = ''.join(
+                    [x for x in titulo_datos if x.isalpha() or x == ' ']).replace(' ', '_')
                 data_obtenida.controls.append(
                     ft.Text(f"{titulo_datos}", size=25))
 
@@ -268,6 +271,8 @@ async def traducir(texto):
                 data_obtenida.visible = True
                 btn_obtenerdatos.disabled = False
                 btn_obtenercapitulos.visible = True
+                df_listchapters.to_csv(os.path.join(
+                    os.getcwd(), 'chapters', tituloarchivo+'.csv'), index=None)
             except Exception as e:
                 btn_obtenerdatos.disabled = False
                 data_obtenida.controls = ft.Text("Error")
@@ -275,8 +280,6 @@ async def traducir(texto):
 
             page.update()
 
-    tituloarchivo = ''
-    titulo_datos = ''
     rows_listchapters = []
     chaptercontent_list = []
     txt_name = ft.TextField(
