@@ -31,6 +31,7 @@ def main(page):
         global df_contentchapters
         global df_infobox
         global resumen
+        global tituloarchivo
         path = os.getcwd()
         dir = os.listdir()
         if 'epub' not in dir:
@@ -111,6 +112,7 @@ def main(page):
 
     def btn_guardar_csv_click(e):
         global df_contentchapters
+        global tituloarchivo
         path = os.getcwd()
         dir = os.listdir(path=path)
         if 'completes' not in dir:
