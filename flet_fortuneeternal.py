@@ -32,6 +32,7 @@ def main(page):
         global df_infobox
         global resumen
         global tituloarchivo
+        global titulo_datos
         path = os.getcwd()
         dir = os.listdir()
         if 'epub' not in dir:
@@ -121,7 +122,6 @@ def main(page):
         df_contentchapters.to_csv(os.path.join(
             path, 'completes', tituloarchivo+'.csv'), index=None)
 
-
     def btn_obtenercapitulos_click(e):
         global df_listchapters
         global df_contentchapters
@@ -138,7 +138,7 @@ def main(page):
             op.add_argument('--ignore-certificate-errors')
             op.add_argument('--ssl-protocol=any')
             op.headless = True
-            for index in range(len(df_listchapters), 0, -1):
+            for index in range(len(df_listchapters)-len(pd.read_csv(os.path.join(os.getcwd(),tituloarchivo+'.csv'))) , 0, -1):
                 driver = webdriver.Chrome(service=servicio, options=op)
                 # driver.minimize_window()
                 print(df_listchapters['nombre'][index-1])
@@ -149,17 +149,28 @@ def main(page):
                 driver.close()
                 contentcapter = soup.find('div', class_='entry-content_wrap')
                 contentcapter_p = contentcapter.find_all('p')
+                #'alibaba', 'baidu', 'mirai', 'modernMt', 'myMemory'
+                pooltranslators= [ 'bing', 'deepl', 'google', 'niutrans', ]
+                
+
                 for idx, p in enumerate(contentcapter_p):
                     if p.get_text() is not None:
-                        try:
-                            texto = ts.translate_text(p.get_text(), translator='google', to_language='es')
-                        except Exception as e:
-                            texto = ts.translate_text(p.get_text(), translator='bing', to_language='es')
+                        poolindex = 0
+                        while True:
+                            try:
+                                texto = ts.translate_text(
+                                    str(p.get_text()), translator=pooltranslators[poolindex], from_language='ko', to_language='es')
+                                break
+                            except Exception as e:
+                                if poolindex == len(pooltranslators):
+                                    break
+                                poolindex +=1
+                                pass
                         print(texto)
                         contenido_p.append(texto)
 
                     print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
-                    time.sleep(0.3)
+                    # time.sleep(0.3)
                 # print(contenido_p)
                 contenido_p = ''.join([f"<p>{x}</p>" for x in contenido_p])
                 chaptercontent_list.append(
@@ -245,9 +256,9 @@ def main(page):
                 df_infobox = pd.DataFrame(
                     info_list, columns=['titulo', 'descripcion'])
                 print(df_infobox)
-                #
-                resumen = ts.translate_text(soup.find(
-                    'div', class_='summary__content').get_text().strip().rstrip(), translator='google', to_language='es')
+                resumen_en = str(
+                    soup.find('div', class_='summary__content').get_text().strip().rstrip())
+                resumen = ts.translate_text(resumen_en, translator='bing', to_language='es')
                 data_obtenida.controls.append(ft.Text(f"{resumen}"))
                 print(resumen)
 
