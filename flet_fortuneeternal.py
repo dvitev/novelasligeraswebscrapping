@@ -48,8 +48,8 @@ async def main(page: ft.Page):
             imgenportada = ''.join(
                 [x for x in dirimgs if '000001' in x]).split('.')
             if imgenportada[0] != '':
-                os.rename(os.path.join(path, 'images', ''.join(imgenportada)), os.path.join(
-                    path, 'images', tituloarchivo+imgenportada[1]))
+                os.rename(os.path.join(path, 'images', '.'.join(imgenportada)), os.path.join(
+                    path, 'images', tituloarchivo+'.'+imgenportada[1]))
 
         book = epub.EpubBook()
         # set metadata
@@ -57,7 +57,7 @@ async def main(page: ft.Page):
         imgenportada = ''.join([x for x in dirimgs if tituloarchivo in x])
         if imgenportada != '':
             book.set_cover('cover.jpg',
-                           open((os.path.join(path, 'images', imgenportada)), 'rb').read())
+                           open((os.path.join(path, 'images', '.'.join(imgenportada))), 'rb').read())
 
         book.set_title(titulo_datos)
         book.set_language('es')
@@ -123,16 +123,17 @@ async def main(page: ft.Page):
         df_contentchapters.to_csv(os.path.join(
             path, 'completes', tituloarchivo+'.csv'), index=None)
         await page.update_async()
-    
+
     async def traducir(texto):
-        # pooltranslators = ['argos', 'bing', 'google', 'yandex', 'baidu', 'tencent', 'youdao'] 
+        # pooltranslators = ['argos', 'bing', 'google', 'yandex', 'baidu', 'tencent', 'youdao']
         # poolindex = 0
         contenido_p = ''
 
         while True:
             try:
                 # print(pooltranslators[poolindex])
-                contenido_p = ts.translate_text(texto, from_language='ko', to_language='es')
+                contenido_p = ts.translate_text(
+                    texto, from_language='ko', to_language='es')
                 break
             except Exception as e:
                 # print(pooltranslators[poolindex])
@@ -143,7 +144,6 @@ async def main(page: ft.Page):
                 pass
         return contenido_p
         # return ts.translate_text(texto, translator='alibaba', from_language='ko', to_language='es')
-        
 
     async def btn_obtenercapitulos_click(e):
         global df_listchapters
@@ -184,7 +184,7 @@ async def main(page: ft.Page):
                     print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
                 contenido_p_en = ''.join(
                     [f"<p>{x}</p>" for x in contenido_p_en])
-                
+
                 chaptercontent_list.append(
                     [df_listchapters['nombre'][index-1], contenido_p_en])
 
