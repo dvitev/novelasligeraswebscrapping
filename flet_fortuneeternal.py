@@ -24,7 +24,6 @@ sys.stdout.reconfigure(encoding='utf-8')
 
 async def main(page: ft.Page):
     page.title = "Fortune Eternal"
-    page.padding = 0
     tituloarchivo = ''
     titulo_datos = ''
 
@@ -124,6 +123,10 @@ async def main(page: ft.Page):
         df_contentchapters.to_csv(os.path.join(
             path, 'completes', tituloarchivo+'.csv'), index=None)
         await page.update_async()
+    
+    async def traducir(texto):
+        return ts.translate_text(texto, translator='alibaba', from_language='ko', to_language='es')
+        
 
     async def btn_obtenercapitulos_click(e):
         global df_listchapters
@@ -154,33 +157,37 @@ async def main(page: ft.Page):
                 contentcapter_p = contentcapter.find_all('p')
                 # 'alibaba', 'baidu', 'mirai', 'modernMt', 'myMemory'
                 # pooltranslators= [ 'bing', 'deepl', 'google', 'niutrans', ]
-                pooltranslators = ts.translators_pool
+                # pooltranslators = ts.translators_pool
 
                 for idx, p in enumerate(contentcapter_p):
                     if p.get_text() is not None:
-                        contenido_p_en.append(p.get_text())
-                    # print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
+                        texto = await traducir(str(p.get_text()))
+                        # texto = ts.translate_text(
+                        #     str(p.get_text()), translator='alibaba', from_language='ko', to_language='es')
+                        print(texto)
+                        contenido_p_en.append(texto)
+                    print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
                 contenido_p_en = ''.join(
                     [f"<p>{x}</p>" for x in contenido_p_en])
-                poolindex = 0
-                while True:
-                    try:
-                        # contenido_p = ts.translate_html(
-                        #     str(contenido_p_en), translator=pooltranslators[poolindex], from_language='ko', to_language='es')
-                        print('intentando traducir',
-                              df_listchapters['nombre'][index-1])
-                        contenido_p = await ts.translate_html(
-                            str(contenido_p_en), translator='alibaba', from_language='ko', to_language='es')
-                        print('traducido', df_listchapters['nombre'][index-1])
-                        break
-                    except Exception as e:
-                        if poolindex == len(pooltranslators)-1:
-                            break
-                        poolindex += 1
-                        pass
+                # poolindex = 0
+                # while True:
+                #     try:
+                #         # contenido_p = ts.translate_html(
+                #         #     str(contenido_p_en), translator=pooltranslators[poolindex], from_language='ko', to_language='es')
+                #         print('intentando traducir',
+                #               df_listchapters['nombre'][index-1])
+                #         contenido_p = await ts.translate_html(
+                #             str(contenido_p_en), translator='google', from_language='ko', to_language='es')
+                #         print('traducido', df_listchapters['nombre'][index-1])
+                #         break
+                #     except Exception as e:
+                #         if poolindex == len(pooltranslators)-1:
+                #             break
+                #         poolindex += 1
+                #         pass
                 # contenido_p = texto
                 chaptercontent_list.append(
-                    [df_listchapters['nombre'][index-1], contenido_p])
+                    [df_listchapters['nombre'][index-1], contenido_p_en])
 
                 datatable.rows[len(df_listchapters['nombre']
                                    )-index].selected = True
@@ -201,7 +208,7 @@ async def main(page: ft.Page):
         btn_guardar_csv.visible = False
         btn_obtenercapitulos.visible = False
         btn_guardar_epub.visible = False
-        page.update()
+        await page.update_async()
         global df_infobox
         global titulo_datos
         global tituloarchivo
@@ -209,10 +216,10 @@ async def main(page: ft.Page):
         global resumen
         if not txt_name.value:
             txt_name.error_text = "El Campo no puede estar en blanco"
-            page.update()
+            await page.update_async()
         if "https://www.fortuneeternal.com/novel/" not in txt_name.value:
             txt_name.error_text = "La URL no es de Fortune Eternal. Proporcione una URL de novela válida."
-            page.update()
+            await page.update_async()
         else:
 
             xpath_titulo = '/html/body/div[1]/div/div[3]/div/div[1]/div/div/div/div[2]/h1'

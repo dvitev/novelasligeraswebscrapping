@@ -10,3 +10,4 @@ selenium
 translators
 undetected-chromedriver
 urllib3
+webdriver_manager
