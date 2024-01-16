@@ -22,12 +22,13 @@ sys.stdin.reconfigure(encoding='utf-8')
 sys.stdout.reconfigure(encoding='utf-8')
 
 
-def main(page):
+async def main(page: ft.Page):
     page.title = "Fortune Eternal"
+    page.padding = 0
     tituloarchivo = ''
     titulo_datos = ''
 
-    def btn_guardar_epub_click(e):
+    async def btn_guardar_epub_click(e):
         global df_contentchapters
         global df_infobox
         global resumen
@@ -72,7 +73,7 @@ def main(page):
         book.add_item(c)
         for index, chapter in df_contentchapters.iterrows():
             cp = str(index+1).zfill(len(str(len(df_contentchapters))))
-            c = epub.EpubHtml(uid=str(uuid.uuid1), title=str(
+            c = epub.EpubHtml(title=str(
                 chapter['nombre']), file_name='chap_' + cp + '.xhtml', lang='es')
             c.content = f"<h1>{str(chapter['nombre'])}</h1><br>{chapter['contenido']}"
             # add chapter
@@ -110,8 +111,9 @@ def main(page):
             path, 'epub', tituloarchivo+'.epub'), book, {})
         # print(dFrame)
         print('archivo epub de ', tituloarchivo, ' creado')
+        await page.update_async()
 
-    def btn_guardar_csv_click(e):
+    async def btn_guardar_csv_click(e):
         global df_contentchapters
         global tituloarchivo
         path = os.getcwd()
@@ -121,8 +123,9 @@ def main(page):
 
         df_contentchapters.to_csv(os.path.join(
             path, 'completes', tituloarchivo+'.csv'), index=None)
+        await page.update_async()
 
-    def btn_obtenercapitulos_click(e):
+    async def btn_obtenercapitulos_click(e):
         global df_listchapters
         global df_contentchapters
         global tituloarchivo
@@ -138,49 +141,52 @@ def main(page):
             op.add_argument('--ignore-certificate-errors')
             op.add_argument('--ssl-protocol=any')
             op.headless = True
-            for index in range(len(df_listchapters)-len(pd.read_csv(os.path.join(os.getcwd(),tituloarchivo+'.csv'))) , 0, -1):
+            for index in range(len(df_listchapters), 0, -1):
                 driver = webdriver.Chrome(service=servicio, options=op)
                 # driver.minimize_window()
                 print(df_listchapters['nombre'][index-1])
-                contenido_p = []
+                contenido_p_en = []
                 driver.get(df_listchapters['urls'][index-1])
                 time.sleep(5)
                 soup = bs(driver.page_source, 'html.parser')
                 driver.close()
                 contentcapter = soup.find('div', class_='entry-content_wrap')
                 contentcapter_p = contentcapter.find_all('p')
-                #'alibaba', 'baidu', 'mirai', 'modernMt', 'myMemory'
-                pooltranslators= [ 'bing', 'deepl', 'google', 'niutrans', ]
-                
+                # 'alibaba', 'baidu', 'mirai', 'modernMt', 'myMemory'
+                # pooltranslators= [ 'bing', 'deepl', 'google', 'niutrans', ]
+                pooltranslators = ts.translators_pool
 
                 for idx, p in enumerate(contentcapter_p):
                     if p.get_text() is not None:
-                        poolindex = 0
-                        while True:
-                            try:
-                                texto = ts.translate_text(
-                                    str(p.get_text()), translator=pooltranslators[poolindex], from_language='ko', to_language='es')
-                                break
-                            except Exception as e:
-                                if poolindex == len(pooltranslators):
-                                    break
-                                poolindex +=1
-                                pass
-                        print(texto)
-                        contenido_p.append(texto)
-
-                    print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
-                    # time.sleep(0.3)
-                # print(contenido_p)
-                contenido_p = ''.join([f"<p>{x}</p>" for x in contenido_p])
+                        contenido_p_en.append(p.get_text())
+                    # print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
+                contenido_p_en = ''.join(
+                    [f"<p>{x}</p>" for x in contenido_p_en])
+                poolindex = 0
+                while True:
+                    try:
+                        # contenido_p = ts.translate_html(
+                        #     str(contenido_p_en), translator=pooltranslators[poolindex], from_language='ko', to_language='es')
+                        print('intentando traducir',
+                              df_listchapters['nombre'][index-1])
+                        contenido_p = await ts.translate_html(
+                            str(contenido_p_en), translator='alibaba', from_language='ko', to_language='es')
+                        print('traducido', df_listchapters['nombre'][index-1])
+                        break
+                    except Exception as e:
+                        if poolindex == len(pooltranslators)-1:
+                            break
+                        poolindex += 1
+                        pass
+                # contenido_p = texto
                 chaptercontent_list.append(
                     [df_listchapters['nombre'][index-1], contenido_p])
 
                 datatable.rows[len(df_listchapters['nombre']
                                    )-index].selected = True
                 # df_listchapters.to_csv(os.path.join(os.getcwd(),'chapters',tituloarchivo+'.csv'),index=None)
-                page.update()
-
+                await page.update_async()
+            # driver.close()
             btn_guardar_csv.visible = True
             df_contentchapters = pd.DataFrame(
                 chaptercontent_list, columns=['nombre', 'contenido'])
@@ -188,9 +194,9 @@ def main(page):
             btn_guardar_epub.visible = True
         except Exception as e:
             print(e)
-        page.update()
+        await page.update_async()
 
-    def btn_obtenerdatos_click(e):
+    async def btn_obtenerdatos_click(e):
         btn_obtenerdatos.disabled = True
         btn_guardar_csv.visible = False
         btn_obtenercapitulos.visible = False
@@ -258,7 +264,8 @@ def main(page):
                 print(df_infobox)
                 resumen_en = str(
                     soup.find('div', class_='summary__content').get_text().strip().rstrip())
-                resumen = ts.translate_text(resumen_en, translator='bing', to_language='es')
+                resumen = ts.translate_text(
+                    resumen_en, translator='bing', to_language='es')
                 data_obtenida.controls.append(ft.Text(f"{resumen}"))
                 print(resumen)
 
@@ -292,12 +299,13 @@ def main(page):
                 data_obtenida.controls = ft.Text("Error")
                 print(e)
 
-            page.update()
+            await page.update_async()
 
     rows_listchapters = []
     chaptercontent_list = []
     txt_name = ft.TextField(
-        label="Ingrese la Url de Novela de Fortune Eternal", value='https://www.fortuneeternal.com/novel/black-corporation-joseon-raw-novel/')
+        label="Ingrese la Url de Novela de Fortune Eternal",
+        value='https://www.fortuneeternal.com/novel/black-corporation-joseon-raw-novel/')
     data_obtenida = ft.ListView(
         expand=True, spacing=10, visible=False, item_extent=50)
     btn_guardar_epub = ft.ElevatedButton(
@@ -328,16 +336,19 @@ def main(page):
         ],
         rows=rows_listchapters,
     )
-    page.add(
-        txt_name,
-        ft.Row(controls=[
-            btn_obtenerdatos,
-            btn_obtenercapitulos,
-            btn_guardar_csv,
-            btn_guardar_epub,
-        ]),
-        data_obtenida
+    contenedor = ft.Container(
+        ft.Column(controls=[
+            txt_name,
+            ft.Row(controls=[
+                btn_obtenerdatos,
+                btn_obtenercapitulos,
+                btn_guardar_csv,
+                btn_guardar_epub,
+            ]),
+            data_obtenida
+        ])
     )
+    await page.add_async(contenedor)
 
 
 ft.app(target=main)
