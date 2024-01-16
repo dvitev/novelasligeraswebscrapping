@@ -133,6 +133,9 @@ ENV/
 env.bak/
 venv.bak/
 
+#Exe de Flet
+exe/
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -175,3 +178,4 @@ poetry.toml
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+.vscode/settings.json

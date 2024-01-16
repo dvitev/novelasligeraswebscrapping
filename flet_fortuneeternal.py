@@ -125,7 +125,24 @@ async def main(page: ft.Page):
         await page.update_async()
     
     async def traducir(texto):
-        return ts.translate_text(texto, translator='alibaba', from_language='ko', to_language='es')
+        # pooltranslators = ['argos', 'bing', 'google', 'yandex', 'baidu', 'tencent', 'youdao'] 
+        # poolindex = 0
+        contenido_p = ''
+
+        while True:
+            try:
+                # print(pooltranslators[poolindex])
+                contenido_p = ts.translate_text(texto, from_language='ko', to_language='es')
+                break
+            except Exception as e:
+                # print(pooltranslators[poolindex])
+                print(e)
+                # if poolindex == len(pooltranslators)-1:
+                #     break
+                # poolindex += 1
+                pass
+        return contenido_p
+        # return ts.translate_text(texto, translator='alibaba', from_language='ko', to_language='es')
         
 
     async def btn_obtenercapitulos_click(e):
@@ -157,35 +174,17 @@ async def main(page: ft.Page):
                 contentcapter_p = contentcapter.find_all('p')
                 # 'alibaba', 'baidu', 'mirai', 'modernMt', 'myMemory'
                 # pooltranslators= [ 'bing', 'deepl', 'google', 'niutrans', ]
-                # pooltranslators = ts.translators_pool
 
                 for idx, p in enumerate(contentcapter_p):
                     if p.get_text() is not None:
                         texto = await traducir(str(p.get_text()))
-                        # texto = ts.translate_text(
-                        #     str(p.get_text()), translator='alibaba', from_language='ko', to_language='es')
+                        # await asyncio.sleep(0.05)
                         print(texto)
                         contenido_p_en.append(texto)
                     print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
                 contenido_p_en = ''.join(
                     [f"<p>{x}</p>" for x in contenido_p_en])
-                # poolindex = 0
-                # while True:
-                #     try:
-                #         # contenido_p = ts.translate_html(
-                #         #     str(contenido_p_en), translator=pooltranslators[poolindex], from_language='ko', to_language='es')
-                #         print('intentando traducir',
-                #               df_listchapters['nombre'][index-1])
-                #         contenido_p = await ts.translate_html(
-                #             str(contenido_p_en), translator='google', from_language='ko', to_language='es')
-                #         print('traducido', df_listchapters['nombre'][index-1])
-                #         break
-                #     except Exception as e:
-                #         if poolindex == len(pooltranslators)-1:
-                #             break
-                #         poolindex += 1
-                #         pass
-                # contenido_p = texto
+                
                 chaptercontent_list.append(
                     [df_listchapters['nombre'][index-1], contenido_p_en])
 
