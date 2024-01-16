@@ -112,7 +112,7 @@ async def main(page: ft.Page):
         print('archivo epub de ', tituloarchivo, ' creado')
         await page.update_async()
 
-    async def btn_guardar_csv_click(e):
+    async def guardar_csv():
         global df_contentchapters
         global tituloarchivo
         path = os.getcwd()
@@ -122,7 +122,6 @@ async def main(page: ft.Page):
 
         df_contentchapters.to_csv(os.path.join(
             path, 'completes', tituloarchivo+'.csv'), index=None)
-        await page.update_async()
 
     async def traducir(texto):
         # pooltranslators = ['argos', 'bing', 'google', 'yandex', 'baidu', 'tencent', 'youdao']
@@ -150,6 +149,12 @@ async def main(page: ft.Page):
         global df_contentchapters
         global tituloarchivo
         try:
+            capsprocesados = len(pd.read_csv(os.path.join(
+                os.getcwd(), 'completes', tituloarchivo+'.csv')))
+        except Exception as e:
+            capsprocesados = 0
+            pass
+        try:
             servicio = Service(
                 executable_path=ChromeDriverManager().install())
             op = webdriver.ChromeOptions()
@@ -161,7 +166,7 @@ async def main(page: ft.Page):
             op.add_argument('--ignore-certificate-errors')
             op.add_argument('--ssl-protocol=any')
             op.headless = True
-            for index in range(len(df_listchapters), 0, -1):
+            for index in range(len(df_listchapters)-capsprocesados, 0, -1):
                 driver = webdriver.Chrome(service=servicio, options=op)
                 # driver.minimize_window()
                 print(df_listchapters['nombre'][index-1])
@@ -191,12 +196,11 @@ async def main(page: ft.Page):
                 datatable.rows[len(df_listchapters['nombre']
                                    )-index].selected = True
                 # df_listchapters.to_csv(os.path.join(os.getcwd(),'chapters',tituloarchivo+'.csv'),index=None)
+                await guardar_csv()
                 await page.update_async()
             # driver.close()
-            btn_guardar_csv.visible = True
             df_contentchapters = pd.DataFrame(
                 chaptercontent_list, columns=['nombre', 'contenido'])
-            btn_guardar_csv.visible = True
             btn_guardar_epub.visible = True
         except Exception as e:
             print(e)
@@ -204,7 +208,6 @@ async def main(page: ft.Page):
 
     async def btn_obtenerdatos_click(e):
         btn_obtenerdatos.disabled = True
-        btn_guardar_csv.visible = False
         btn_obtenercapitulos.visible = False
         btn_guardar_epub.visible = False
         await page.update_async()
@@ -320,12 +323,6 @@ async def main(page: ft.Page):
         icon=ft.icons.SAVE,
         on_click=btn_guardar_epub_click
     )
-    btn_guardar_csv = ft.ElevatedButton(
-        "Guardar Capitulos CSV",
-        visible=False,
-        icon=ft.icons.SAVE,
-        on_click=btn_guardar_csv_click
-    )
     btn_obtenerdatos = ft.ElevatedButton(
         "Obtener Datos!", on_click=btn_obtenerdatos_click)
     btn_obtenercapitulos = ft.ElevatedButton(
@@ -348,7 +345,6 @@ async def main(page: ft.Page):
             ft.Row(controls=[
                 btn_obtenerdatos,
                 btn_obtenercapitulos,
-                btn_guardar_csv,
                 btn_guardar_epub,
             ]),
             data_obtenida
