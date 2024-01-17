@@ -172,6 +172,7 @@ async def main(page: ft.Page):
             for index in range(len(df_listchapters)-capsprocesados, 0, -1):
                 driver = webdriver.Chrome(service=servicio, options=op)
                 # driver.minimize_window()
+                capitulo.value = df_listchapters['nombre'][index-1]
                 print(df_listchapters['nombre'][index-1])
                 contenido_p_en = []
                 driver.get(df_listchapters['urls'][index-1])
@@ -189,7 +190,9 @@ async def main(page: ft.Page):
                         # await asyncio.sleep(0.05)
                         print(texto)
                         contenido_p_en.append(texto)
+                    linea.value = f"{idx+1} lineas traducidas de {len(contentcapter_p)}"
                     print(f"{idx+1} lineas traducidas de {len(contentcapter_p)}")
+                    await page.update_async()
                 contenido_p_en = ''.join(
                     [f"<p>{x}</p>" for x in contenido_p_en])
 
@@ -201,6 +204,8 @@ async def main(page: ft.Page):
                 # df_listchapters.to_csv(os.path.join(os.getcwd(),'chapters',tituloarchivo+'.csv'),index=None)
                 df_contentchapters = pd.DataFrame(
                     chaptercontent_list, columns=['nombre', 'contenido'])
+                capitulo.value = ''
+                linea.value = ''
                 await guardar_csv()
                 await page.update_async()
             # driver.close()
@@ -344,18 +349,21 @@ async def main(page: ft.Page):
         ],
         rows=rows_listchapters,
     )
-    contenedor = ft.Container(
-        ft.Column(controls=[
-            txt_name,
-            ft.Row(controls=[
-                btn_obtenerdatos,
-                btn_obtenercapitulos,
-                btn_guardar_epub,
-            ]),
-            data_obtenida
-        ])
+    capitulo = ft.Text(value='')
+    linea = ft.Text(value='')
+
+    await page.add_async(
+        txt_name,
+        ft.Row(controls=[
+            btn_obtenerdatos,
+            btn_obtenercapitulos,
+            btn_guardar_epub,
+            ft.Column(controls=[
+                capitulo, linea
+            ])
+        ]),
+        data_obtenida
     )
-    await page.add_async(contenedor)
 
 
 ft.app(target=main)
