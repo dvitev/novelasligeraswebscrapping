@@ -199,11 +199,13 @@ async def main(page: ft.Page):
                 datatable.rows[len(df_listchapters['nombre']
                                    )-index].selected = True
                 # df_listchapters.to_csv(os.path.join(os.getcwd(),'chapters',tituloarchivo+'.csv'),index=None)
+                df_contentchapters = pd.DataFrame(
+                    chaptercontent_list, columns=['nombre', 'contenido'])
                 await guardar_csv()
                 await page.update_async()
             # driver.close()
-            df_contentchapters = pd.DataFrame(
-                chaptercontent_list, columns=['nombre', 'contenido'])
+            # df_contentchapters = pd.DataFrame(
+                # chaptercontent_list, columns=['nombre', 'contenido'])
             btn_guardar_epub.visible = True
         except Exception as e:
             print(e)
