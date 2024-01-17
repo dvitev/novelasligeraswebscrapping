@@ -145,7 +145,6 @@ async def main(page: ft.Page):
                 # poolindex += 1
                 pass
         return contenido_p
-        # return ts.translate_text(texto, translator='alibaba', from_language='ko', to_language='es')
 
     async def btn_obtenercapitulos_click(e):
         global df_listchapters
@@ -156,6 +155,11 @@ async def main(page: ft.Page):
                 os.getcwd(), 'completes', tituloarchivo+'.csv')))
         except Exception as e:
             capsprocesados = 0
+            pass
+        try:
+            chaptercontent_list = pd.read_csv(os.path.join(os.getcwd(),'completes',tituloarchivo + '.csv'), dtype={'nombre': str, 'contenido':str}).values.tolist()
+        except Exception as e:
+            chaptercontent_list = []
             pass
         try:
             servicio = Service(
