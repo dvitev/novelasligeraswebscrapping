@@ -60,7 +60,7 @@ async def main(page: ft.Page):
         imgenportada = ''.join([x for x in dirimgs if tituloarchivo in x])
         if imgenportada != '':
             book.set_cover('cover.jpg',
-                           open((os.path.join(path, 'images', '.'.join(imgenportada))), 'rb').read())
+                           open((os.path.join(path, 'images', imgenportada)), 'rb').read())
 
         book.set_title(titulo_datos)
         book.set_language('es')
@@ -150,6 +150,7 @@ async def main(page: ft.Page):
         global df_listchapters
         global df_contentchapters
         global tituloarchivo
+        df_contentchapters = pd.DataFrame()
         try:
             capsprocesados = len(pd.read_csv(os.path.join(
                 os.getcwd(), 'completes', tituloarchivo+'.csv')))
@@ -215,6 +216,9 @@ async def main(page: ft.Page):
             # driver.close()
             # df_contentchapters = pd.DataFrame(
                 # chaptercontent_list, columns=['nombre', 'contenido'])
+            if df_contentchapters.empty:
+                df_contentchapters = pd.DataFrame(
+                    chaptercontent_list, columns=['nombre', 'contenido'])
             btn_guardar_epub.visible = True
         except Exception as e:
             print(e)
