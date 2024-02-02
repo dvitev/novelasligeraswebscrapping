@@ -48,11 +48,15 @@ async def main(page: ft.Page):
             # filters = dict(size='small')
             google_crawler.crawl(keyword=titulo_datos, max_num=1)
             time.sleep(5)
+            dirimgs = os.listdir(os.path.join(path, 'images'))
             imgenportada = ''.join(
                 [x for x in dirimgs if '000001' in x]).split('.')
-            if imgenportada[0] != '':
+            # if imgenportada[0] != '':
+            try:
                 os.rename(os.path.join(path, 'images', '.'.join(imgenportada)), os.path.join(
                     path, 'images', tituloarchivo+'.'+imgenportada[1]))
+            except:
+                pass
 
         book = epub.EpubBook()
         # set metadata
@@ -127,22 +131,23 @@ async def main(page: ft.Page):
             path, 'completes', tituloarchivo+'.csv'), index=None)
 
     async def traducir(texto):
-        # pooltranslators = ['argos', 'bing', 'google', 'yandex', 'baidu', 'tencent', 'youdao']
-        # poolindex = 0
         contenido_p = ''
 
         while True:
             try:
                 # print(pooltranslators[poolindex])
                 contenido_p = ts.translate_text(
-                    texto, from_language='ko', to_language='es')
+                    texto, translator='bing', from_language='ko', to_language='es')
                 break
             except Exception as e:
                 # print(pooltranslators[poolindex])
                 print(e)
-                # if poolindex == len(pooltranslators)-1:
-                #     break
-                # poolindex += 1
+                try:
+                    contenido_p = ts.translate_text(
+                    texto, translator='google', from_language='ko', to_language='es')
+                except Exception as e:
+                    print(e)
+                    pass
                 pass
         return contenido_p
 
