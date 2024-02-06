@@ -159,16 +159,11 @@ async def main(page: ft.Page):
 
         while True:
             try:
-                # print(pooltranslators[poolindex])
                 contenido_p = ts.translate_text(
                     texto, translator='bing', from_language='en', to_language='es')
                 break
             except Exception as e:
-                # print(pooltranslators[poolindex])
                 print(e)
-                # if poolindex == len(pooltranslators)-1:
-                #     break
-                # poolindex += 1
                 try:
                     contenido_p = ts.translate_text(
                         texto, translator='google', from_language='en', to_language='es')
@@ -239,8 +234,15 @@ async def main(page: ft.Page):
 
                 for idx, p in enumerate(contentcapter_p):
                     if p.get_text() is not None or p.get_text().strip().rstrip() != "":
-                        texto = await traducir(str(p.get_text()))
-                        # await asyncio.sleep(0.05)
+                        if len(str(p.get_text())) > 200:
+                            textoaren = str(p.get_text()).split('. ')
+                            textoar = []
+                            for idx2, tar in enumerate(textoaren):
+                                textoar.append(await traducir(tar))
+                                print(f"{idx2+1} de {len(textoaren)} partes traducidas")
+                            texto = '. '.join(textoar)
+                        else:
+                            texto = await traducir(str(p.get_text()))
                         print(texto)
                         contenido_p_en.append(texto)
                     linea.value = f"{idx+1} lineas traducidas de {len(contentcapter_p)}"
