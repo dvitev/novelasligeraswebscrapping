@@ -35,6 +35,28 @@ async def main(page: ft.Page):
     tituloarchivo = ''
     titulo_datos = ''
 
+    async def btn_rest_click(e):
+        global df_contentchapters
+        global df_infobox
+        global resumen
+        global tituloarchivo
+        global titulo_datos
+        global df_listchapters
+        global resumen
+        global rows_listchapters
+        df_contentchapters=[]
+        df_infobox=[]
+        resumen=""
+        tituloarchivo = ""
+        titulo_datos=""
+        df_listchapters=[]
+        rows_listchapters=[]
+        data_obtenida.controls=[]
+        rows_listchapters = []
+        btn_guardar_epub.visible = False
+        btn_obtenercapitulos.visible = False
+        await page.update_async()
+
     async def btn_guardar_epub_click(e):
         """
         This async function handles the click event for the 'Guardar Epub' button. 
@@ -129,6 +151,7 @@ async def main(page: ft.Page):
             path, 'epub', tituloarchivo+'.epub'), book, {})
         # print(dFrame)
         print('archivo epub de ', tituloarchivo, ' creado')
+        btn_reset.visible = True
         await page.update_async()
 
     async def guardar_csv():
@@ -403,6 +426,7 @@ async def main(page: ft.Page):
         "Obtener Datos!", on_click=btn_obtenerdatos_click)
     btn_obtenercapitulos = ft.ElevatedButton(
         "Obtener Capitulos", on_click=btn_obtenercapitulos_click, visible=False)
+    btn_reset = ft.ElevatedButton("Reset", visible=False, icon=ft.icons.RESET_TV, on_click=btn_rest_click)
     datatable = ft.DataTable(
         show_checkbox_column=True,
         border=ft.border.all(2),
@@ -424,6 +448,7 @@ async def main(page: ft.Page):
             btn_obtenerdatos,
             btn_obtenercapitulos,
             btn_guardar_epub,
+            btn_reset,
             ft.Column(controls=[
                 capitulo, linea
             ])
