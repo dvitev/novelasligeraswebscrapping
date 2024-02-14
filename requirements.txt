@@ -1,6 +1,7 @@
 beautifulsoup4
 EbookLib
 flet
+fpdf2
 googletrans
 icrawler
 pandas

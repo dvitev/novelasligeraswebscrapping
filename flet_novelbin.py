@@ -19,12 +19,85 @@ import uuid
 import sys
 import asyncio
 import re
+from fpdf import FPDF, HTML2FPDF, TitleStyle
+
 
 try:
     sys.stdin.reconfigure(encoding='utf-8')
     sys.stdout.reconfigure(encoding='utf-8')
 except Exception as e:
     pass
+
+
+# class CustomHTML2FPDF(HTML2FPDF):
+#     def render_toc(self, pdf, outline):
+#         for section in outline:
+#             pdf.write(text=f'* {section.name} (Pagina {section.page_number})')
+
+
+class PDF(FPDF):
+    # HTML2FPDF_CLASS = CustomHTML2FPDF
+    def header(self):
+        # Rendering logo:
+        # self.image("../docs/fpdf2-logo.png", 10, 8, 33)
+        # Setting font: helvetica bold 15
+        # self.set_font("helvetica", "B", 15)
+        # # Moving cursor to the right:
+        # self.cell(80)
+        # # Printing title:
+        # self.cell(30, 10, "Title", border=1, align="C")
+        # # Performing a line break:
+        # self.ln(20)
+        pass
+
+    def footer(self):
+        # Position cursor at 1.5 cm from bottom:
+        self.set_y(-15)
+        # Setting font: helvetica italic 8
+        # self.set_font("helvetica", "", 8)
+        # Printing page number:
+        self.cell(0, 10, f"Pagina {self.page_no()} de {{nb}}", align="C")
+
+    def chapter_title(self, label):
+        # Setting font: helvetica 12
+        # self.add_font(fname='ttf/DejaVuSansCondensed.ttf')
+        # self.set_font('DejaVuSansCondensed', size=12)
+        self.add_font(fname='ttf/Poppins-Regular.ttf')
+        self.set_font('Poppins-Regular', size=12)
+        # Setting background color
+        self.set_fill_color(200, 220, 255)
+        # Printing chapter name:
+        self.cell(
+            0,
+            6,
+            f"{label}",
+            new_x="LMARGIN",
+            new_y="NEXT",
+            align="L",
+            fill=True,
+        )
+        # Performing a line break:
+        self.ln(4)
+
+    def chapter_body(self, texto):
+        # Setting font: Times 12
+        # self.add_font(fname='ttf/DejaVuSansCondensed.ttf')
+        # self.set_font('DejaVuSansCondensed', size=12)
+        self.add_font(fname='ttf/Poppins-Regular.ttf')
+        self.set_font('Poppins-Regular', size=12)
+        # Printing justified text:
+        self.write_html(texto)
+        # Performing a line break:
+        self.ln()
+
+    def add_section(self, title):
+        self.start_section(title)
+
+    def print_chapter(self, title, texto):
+        self.add_page()
+        # self.start_section(title)
+        self.chapter_title(title)
+        self.chapter_body(texto)
 
 
 async def main(page: ft.Page):
@@ -35,6 +108,96 @@ async def main(page: ft.Page):
     tituloarchivo = ''
     titulo_datos = ''
 
+
+    # def render_toc(pdf, outline):
+    #     pdf.y += 50
+    #     pdf.add_font(fname='ttf/Poppins-Regular.ttf')
+    #     pdf.set_font('Poppins-Regular', size=16)
+    #     pdf.underline = True
+    #     pdf.chapter_title("Tabla de Contenido")
+    #     pdf.underline = False
+    #     pdf.y += 20
+    #     pdf.set_font("Courier", size=12)
+    #     for section in outline:
+    #         link = pdf.add_link()
+    #         pdf.set_link(link, page=section.page_number)
+    #         text = f'{" " * section.level * 2} {section.name}'
+    #         text += (
+    #             f' {"." * (60 - section.level*2 - len(section.name))} {section.page_number}'
+    #         )
+    #         pdf.multi_cell(w=pdf.epw,
+    #                     h=pdf.font_size,
+    #                     txt=text,
+    #                     ln=1,
+    #                     align="C",
+    #                     link=link)
+
+    async def btn_guardar_pdf_click(e):
+        global df_contentchapters
+        global df_infobox
+        global resumen
+        global tituloarchivo
+        global titulo_datos
+        path = os.getcwd()
+        dir = os.listdir()
+        if 'pdf' not in dir:
+            os.mkdir(os.path.join(path, 'pdf'))
+        if 'images' not in dir:
+            os.mkdir(os.path.join(path, 'images'))
+        dirimgs = os.listdir(os.path.join(path, 'images'))
+        if ''.join([x for x in dirimgs if tituloarchivo in x]) == '':
+            google_crawler = GoogleImageCrawler()
+            # filters = dict(size='small')
+            google_crawler.crawl(keyword=titulo_datos, max_num=1)
+            time.sleep(5)
+            dirimgs = os.listdir(os.path.join(path, 'images'))
+            imgenportada = ''.join(
+                [x for x in dirimgs if '000001' in x]).split('.')
+            # if imgenportada[0] != '':
+            try:
+                os.rename(os.path.join(path, 'images', '.'.join(imgenportada)), os.path.join(
+                    path, 'images', tituloarchivo+'.'+imgenportada[1]))
+            except:
+                pass
+        else:
+            imgenportada = ''.join([x for x in dirimgs if tituloarchivo in x])
+
+        pdf = PDF(orientation='P', unit='mm', format='A4')
+        # pdf.set_text_shaping(True)
+        # pdf.add_font(fname='ttf/DejaVuSansCondensed.ttf')
+        # pdf.set_font('DejaVuSansCondensed', size=12)
+        pdf.add_font(fname='ttf/Poppins-Regular.ttf')
+        pdf.set_font('Poppins-Regular', size=12)
+
+        pdf.set_title(f"{titulo_datos}")
+        for idx, info in df_infobox.iterrows():
+            if 'autor' in str(info['descripcion']).lower():
+                pdf.set_author(f"{info['descripcion'].split(':')[-1].strip()}")
+        pdf.set_creator('David Eliceo Vite Vergara')
+        pdf.add_page()
+        pdf.chapter_title(f"{titulo_datos}")
+        pdf.image(name=os.path.join(path, 'images',
+                  imgenportada), x=pdf.epw/3, w=75)
+        for idx, info in df_infobox.iterrows():
+            pdf.write_html(text=f"<p>{info['descripcion']}</p>")
+        pdf.write_html(text="<h5>Resumen:</h5>")
+        pdf.write_html(text=''.join(
+            [f"<p>{x}.</p>" for x in resumen.split('.')]))
+        pdf.write(text=f"Url de Novela: {txt_name.value}")
+
+        for index, chapter in df_contentchapters.iterrows():
+            pdf.print_chapter(f"{chapter['nombre']}",
+                              f"{chapter['contenido']}")
+            capitulo.value = f"Añadido {chapter['nombre']} al PDF"
+            print(f"Añadido {chapter['nombre']} al PDF")
+            await page.update_async()
+        linea.value = f"archivo pdf de {tituloarchivo} creado"
+        pdf.output(f"{os.path.join(path,'pdf',tituloarchivo)}.pdf")
+        print('archivo pdf de ', tituloarchivo, ' creado')
+        capitulo.value = ''
+        linea.value = ''
+        await page.update_async()
+
     async def btn_rest_click(e):
         global df_contentchapters
         global df_infobox
@@ -44,14 +207,14 @@ async def main(page: ft.Page):
         global df_listchapters
         global resumen
         global rows_listchapters
-        df_contentchapters=[]
-        df_infobox=[]
-        resumen=""
+        df_contentchapters = []
+        df_infobox = []
+        resumen = ""
         tituloarchivo = ""
-        titulo_datos=""
-        df_listchapters=[]
-        rows_listchapters=[]
-        data_obtenida.controls=[]
+        titulo_datos = ""
+        df_listchapters = []
+        rows_listchapters = []
+        data_obtenida.controls = []
         rows_listchapters = []
         btn_guardar_epub.visible = False
         btn_obtenercapitulos.visible = False
@@ -102,7 +265,9 @@ async def main(page: ft.Page):
 
         book.set_title(titulo_datos)
         book.set_language('es')
-        book.add_author(df_infobox['descripcion'][1])
+        for idx, info in df_infobox.iterrows():
+            if 'autor' in str(info['descripcion']).lower():
+                book.add_author(f"{info['descripcion'].split(':')[-1].strip()}")
 
         cs = ()
 
@@ -231,11 +396,17 @@ async def main(page: ft.Page):
             # op.headless = True
             index = 0
             while index < len(df_listchapters):
-                if index < capsprocesados:
-                    for i in range(0, capsprocesados):
+                if capsprocesados < len(df_listchapters):
+                    if index < capsprocesados:
+                        for i in range(0, capsprocesados):
+                            datatable.rows[i].selected = True
+                        index = capsprocesados
+                        await page.update_async()
+                else:
+                    for i in range(0, len(df_listchapters)):
                         datatable.rows[i].selected = True
-                    index = capsprocesados
-                    page.update_async()
+                    await page.update_async()
+                    break
 
                 # driver = webdriver.Chrome(service=servicio, options=op)
                 service = Service(verbose=True)
@@ -262,7 +433,8 @@ async def main(page: ft.Page):
                             textoar = []
                             for idx2, tar in enumerate(textoaren):
                                 textoar.append(await traducir(tar))
-                                print(f"{idx2+1} de {len(textoaren)} partes traducidas")
+                                print(
+                                    f"{idx2+1} de {len(textoaren)} partes traducidas")
                             texto = '. '.join(textoar)
                         else:
                             texto = await traducir(str(p.get_text()))
@@ -291,6 +463,7 @@ async def main(page: ft.Page):
                 df_contentchapters = pd.DataFrame(
                     chaptercontent_list, columns=['nombre', 'contenido'])
             btn_guardar_epub.visible = True
+            btn_guardar_pdf.visible = True
         except Exception as e:
             print(e)
         await page.update_async()
@@ -426,7 +599,10 @@ async def main(page: ft.Page):
         "Obtener Datos!", on_click=btn_obtenerdatos_click)
     btn_obtenercapitulos = ft.ElevatedButton(
         "Obtener Capitulos", on_click=btn_obtenercapitulos_click, visible=False)
-    btn_reset = ft.ElevatedButton("Reset", visible=False, icon=ft.icons.RESET_TV, on_click=btn_rest_click)
+    btn_reset = ft.ElevatedButton(
+        "Reset", visible=False, icon=ft.icons.RESET_TV, on_click=btn_rest_click)
+    btn_guardar_pdf = ft.ElevatedButton(
+        "Guardar PDF", visible=False, icon=ft.icons.SAVE_ALT, on_click=btn_guardar_pdf_click)
     datatable = ft.DataTable(
         show_checkbox_column=True,
         border=ft.border.all(2),
@@ -448,7 +624,8 @@ async def main(page: ft.Page):
             btn_obtenerdatos,
             btn_obtenercapitulos,
             btn_guardar_epub,
-            btn_reset,
+            # btn_reset,
+            btn_guardar_pdf,
             ft.Column(controls=[
                 capitulo, linea
             ])
