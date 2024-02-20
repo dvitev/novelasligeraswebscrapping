@@ -51,20 +51,12 @@ class PDF(FPDF):
         pass
 
     def footer(self):
-        # Position cursor at 1.5 cm from bottom:
         self.set_y(-15)
-        # Setting font: helvetica italic 8
-        # self.set_font("helvetica", "", 8)
-        # Printing page number:
+        self.set_font('Poppins-Regular', size=12)
         self.cell(0, 10, f"Pagina {self.page_no()} de {{nb}}", align="C")
 
     def chapter_title(self, label):
-        # Setting font: helvetica 12
-        # self.add_font(fname='ttf/DejaVuSansCondensed.ttf')
-        # self.set_font('DejaVuSansCondensed', size=12)
-        self.add_font(fname='ttf/Poppins-Regular.ttf')
         self.set_font('Poppins-Regular', size=12)
-        # Setting background color
         self.set_fill_color(200, 220, 255)
         # Printing chapter name:
         self.cell(
@@ -80,10 +72,6 @@ class PDF(FPDF):
         self.ln(4)
 
     def chapter_body(self, texto):
-        # Setting font: Times 12
-        # self.add_font(fname='ttf/DejaVuSansCondensed.ttf')
-        # self.set_font('DejaVuSansCondensed', size=12)
-        self.add_font(fname='ttf/Poppins-Regular.ttf')
         self.set_font('Poppins-Regular', size=12)
         # Printing justified text:
         self.write_html(texto)
@@ -109,28 +97,19 @@ async def main(page: ft.Page):
     titulo_datos = ''
 
 
-    # def render_toc(pdf, outline):
-    #     pdf.y += 50
-    #     pdf.add_font(fname='ttf/Poppins-Regular.ttf')
-    #     pdf.set_font('Poppins-Regular', size=16)
-    #     pdf.underline = True
-    #     pdf.chapter_title("Tabla de Contenido")
-    #     pdf.underline = False
-    #     pdf.y += 20
-    #     pdf.set_font("Courier", size=12)
-    #     for section in outline:
-    #         link = pdf.add_link()
-    #         pdf.set_link(link, page=section.page_number)
-    #         text = f'{" " * section.level * 2} {section.name}'
-    #         text += (
-    #             f' {"." * (60 - section.level*2 - len(section.name))} {section.page_number}'
-    #         )
-    #         pdf.multi_cell(w=pdf.epw,
-    #                     h=pdf.font_size,
-    #                     txt=text,
-    #                     ln=1,
-    #                     align="C",
-    #                     link=link)
+    def render_toc(pdf, outline):
+        pdf.set_font('Poppins-Regular', size=16)
+        pdf.underline = True
+        pdf.chapter_title("Tabla de Contenido")
+        pdf.underline = False
+        pdf.y += 70
+        pdf.set_font("Courier", size=12)
+        for section in outline:
+            link = pdf.add_link()
+            pdf.set_link(link, page=section.page_number)
+            text = f'{" " * section.level * 2} {section.name} {"." * (60 - section.level*2 - len(section.name))} {section.page_number}'
+            pdf.multi_cell(w=pdf.epw, h=pdf.font_size, txt=text, ln=1, align="C", link=link)
+            
 
     async def btn_guardar_pdf_click(e):
         global df_contentchapters
@@ -429,7 +408,7 @@ async def main(page: ft.Page):
                 for idx, p in enumerate(contentcapter_p):
                     if p.get_text() is not None or p.get_text().strip().rstrip() != "":
                         if len(str(p.get_text())) > 200:
-                            textoaren = str(p.get_text()).split('. ')
+                            textoaren = str(p.get_text()).strip().rstrip().replace('\n', ' ').split('. ')
                             textoar = []
                             for idx2, tar in enumerate(textoaren):
                                 textoar.append(await traducir(tar))
@@ -437,7 +416,7 @@ async def main(page: ft.Page):
                                     f"{idx2+1} de {len(textoaren)} partes traducidas")
                             texto = '. '.join(textoar)
                         else:
-                            texto = await traducir(str(p.get_text()))
+                            texto = await traducir(str(p.get_text()).strip().rstrip().replace('\n', ' '))
                         print(texto)
                         contenido_p_en.append(texto)
                     linea.value = f"{idx+1} lineas traducidas de {len(contentcapter_p)}"

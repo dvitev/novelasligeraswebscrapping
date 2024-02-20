@@ -8,8 +8,9 @@ from lxml import etree
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+# from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.edge.service import Service
+# from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup as bs
 import translators as ts
 from icrawler.builtin import GoogleImageCrawler
@@ -17,6 +18,8 @@ from ebooklib import epub
 import uuid
 import sys
 import asyncio
+import re
+from fpdf import FPDF, HTML2FPDF, TitleStyle
 
 try:
     sys.stdin.reconfigure(encoding='utf-8')
@@ -25,10 +28,141 @@ except Exception as e:
     pass
 
 
+class PDF(FPDF):
+    # HTML2FPDF_CLASS = CustomHTML2FPDF
+    def header(self):
+        # Rendering logo:
+        # self.image("../docs/fpdf2-logo.png", 10, 8, 33)
+        # Setting font: helvetica bold 15
+        # self.set_font("helvetica", "B", 15)
+        # # Moving cursor to the right:
+        # self.cell(80)
+        # # Printing title:
+        # self.cell(30, 10, "Title", border=1, align="C")
+        # # Performing a line break:
+        # self.ln(20)
+        pass
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Poppins-Regular', size=12)
+        self.cell(0, 10, f"Pagina {self.page_no()} de {{nb}}", align="C")
+
+    def chapter_title(self, label):
+        self.set_font('Poppins-Regular', size=12)
+        self.set_fill_color(200, 220, 255)
+        # Printing chapter name:
+        self.cell(
+            0,
+            6,
+            f"{label}",
+            new_x="LMARGIN",
+            new_y="NEXT",
+            align="L",
+            fill=True,
+        )
+        # Performing a line break:
+        self.ln(4)
+
+    def chapter_body(self, texto):
+        self.set_font('Poppins-Regular', size=12)
+        # Printing justified text:
+        self.write_html(texto)
+        # Performing a line break:
+        self.ln()
+
+    def add_section(self, title):
+        self.start_section(title)
+
+    def print_chapter(self, title, texto):
+        self.add_page()
+        # self.start_section(title)
+        self.chapter_title(title)
+        self.chapter_body(texto)
+
+
 async def main(page: ft.Page):
     page.title = "Fortune Eternal"
     tituloarchivo = ''
     titulo_datos = ''
+
+    def render_toc(pdf, outline):
+        pdf.set_font('Poppins-Regular', size=16)
+        pdf.underline = True
+        pdf.chapter_title("Tabla de Contenido")
+        pdf.underline = False
+        pdf.y += 70
+        pdf.set_font("Courier", size=12)
+        for section in outline:
+            link = pdf.add_link()
+            pdf.set_link(link, page=section.page_number)
+            text = f'{" " * section.level * 2} {section.name} {"." * (60 - section.level*2 - len(section.name))} {section.page_number}'
+            pdf.multi_cell(w=pdf.epw, h=pdf.font_size, txt=text, ln=1, align="C", link=link)
+    
+
+    async def btn_guardar_pdf_click(e):
+        global df_contentchapters
+        global df_infobox
+        global resumen
+        global tituloarchivo
+        global titulo_datos
+        path = os.getcwd()
+        dir = os.listdir()
+        if 'pdf' not in dir:
+            os.mkdir(os.path.join(path, 'pdf'))
+        if 'images' not in dir:
+            os.mkdir(os.path.join(path, 'images'))
+        dirimgs = os.listdir(os.path.join(path, 'images'))
+        if ''.join([x for x in dirimgs if tituloarchivo in x]) == '':
+            google_crawler = GoogleImageCrawler()
+            # filters = dict(size='small')
+            google_crawler.crawl(keyword=titulo_datos, max_num=1)
+            time.sleep(5)
+            dirimgs = os.listdir(os.path.join(path, 'images'))
+            imgenportada = ''.join(
+                [x for x in dirimgs if '000001' in x]).split('.')
+            # if imgenportada[0] != '':
+            try:
+                os.rename(os.path.join(path, 'images', '.'.join(imgenportada)), os.path.join(
+                    path, 'images', tituloarchivo+'.'+imgenportada[1]))
+            except:
+                pass
+        else:
+            imgenportada = ''.join([x for x in dirimgs if tituloarchivo in x])
+
+        pdf = PDF(orientation='P', unit='mm', format='A4')
+        pdf.add_font(fname='ttf/Poppins-Regular.ttf')
+        pdf.set_font('Poppins-Regular', size=12)
+
+        pdf.set_title(f"{titulo_datos}")
+        for idx, info in df_infobox.iterrows():
+            if 'author' in str(info['titulo']).lower():
+                pdf.set_author(f"{info['descripcion'].split(':')[-1].strip()}")
+        pdf.set_creator('David Eliceo Vite Vergara')
+        pdf.add_page()
+        pdf.chapter_title(f"{titulo_datos}")
+        pdf.image(name=os.path.join(path, 'images',
+                  imgenportada), x=pdf.epw/3, w=75)
+        for idx, info in df_infobox.iterrows():
+            pdf.write_html(text=f"<p>{info['titulo']}: {info['descripcion']}</p>")
+        pdf.write_html(text="<h5>Resumen:</h5>")
+        pdf.write_html(text=''.join(
+            [f"<p>{x}.</p>" for x in resumen.split('.')]))
+        pdf.write(text=f"Url de Novela: {txt_name.value}")
+
+        for index, chapter in df_contentchapters.iterrows():
+            pdf.print_chapter(f"{chapter['nombre']}",
+                              f"{chapter['contenido']}")
+            capitulo.value = f"Añadido {chapter['nombre']} al PDF"
+            print(f"Añadido {chapter['nombre']} al PDF")
+            await page.update_async()
+        linea.value = f"archivo pdf de {tituloarchivo} creado"
+        pdf.output(f"{os.path.join(path,'pdf',tituloarchivo)}.pdf")
+        print('archivo pdf de ', tituloarchivo, ' creado')
+        capitulo.value = ''
+        linea.value = ''
+        await page.update_async()
+
 
     async def btn_guardar_epub_click(e):
         global df_contentchapters
@@ -68,7 +202,10 @@ async def main(page: ft.Page):
 
         book.set_title(titulo_datos)
         book.set_language('es')
-        book.add_author(df_infobox['descripcion'][3])
+        for idx, info in df_infobox.iterrows():
+            if 'author' in str(info['titulo']).lower():
+                book.add_author(f"{info['descripcion'].split(':')[-1].strip()}")
+        # book.add_author(df_infobox['descripcion'][3])
 
         cs = ()
 
@@ -159,44 +296,32 @@ async def main(page: ft.Page):
         try:
             capsprocesados = len(pd.read_csv(os.path.join(
                 os.getcwd(), 'completes', tituloarchivo+'.csv')))
-        except Exception as e:
+        except FileNotFoundError:
             capsprocesados = 0
-            pass
+        
+        chaptercontent_list = []
         try:
             chaptercontent_list = pd.read_csv(os.path.join(os.getcwd(),'completes',tituloarchivo + '.csv'), dtype={'nombre': str, 'contenido':str}).values.tolist()
-        except Exception as e:
-            chaptercontent_list = []
+        except FileNotFoundError:
             pass
+
         try:
-            servicio = Service(
-                executable_path=ChromeDriverManager().install())
-            op = webdriver.ChromeOptions()
-            # Ejecutar en modo headless (sin ventana visible))
-            # Evitar errores en algunos sistemas
-            op.add_argument('--disable-gpu')
-            # Evitar errores en algunos sistemas
-            op.add_argument('--no-sandbox')
-            op.add_argument('--ignore-certificate-errors')
-            op.add_argument('--ssl-protocol=any')
-            op.headless = True
             for index in range(len(df_listchapters)-capsprocesados, 0, -1):
-                driver = webdriver.Chrome(service=servicio, options=op)
-                # driver.minimize_window()
+                service = Service(verbose=True)
+                driver = webdriver.Edge(service=service)
                 capitulo.value = df_listchapters['nombre'][index-1]
                 print(df_listchapters['nombre'][index-1])
                 contenido_p_en = []
                 driver.get(df_listchapters['urls'][index-1])
                 time.sleep(5)
                 soup = bs(driver.page_source, 'html.parser')
-                driver.close()
+                driver.quit()
                 contentcapter = soup.find('div', class_='entry-content_wrap')
                 contentcapter_p = contentcapter.find_all('p')
-                # 'alibaba', 'baidu', 'mirai', 'modernMt', 'myMemory'
-                # pooltranslators= [ 'bing', 'deepl', 'google', 'niutrans', ]
 
                 for idx, p in enumerate(contentcapter_p):
                     if p.get_text() is not None:
-                        texto = await traducir(str(p.get_text()))
+                        texto = await traducir(str(p.get_text()).strip().rstrip().replace('\n', ' '))
                         # await asyncio.sleep(0.05)
                         print(texto)
                         contenido_p_en.append(texto)
@@ -225,6 +350,7 @@ async def main(page: ft.Page):
                 df_contentchapters = pd.DataFrame(
                     chaptercontent_list, columns=['nombre', 'contenido'])
             btn_guardar_epub.visible = True
+            btn_guardar_pdf.visible = True
         except Exception as e:
             print(e)
         await page.update_async()
@@ -251,18 +377,20 @@ async def main(page: ft.Page):
             try:
                 data_obtenida.controls = []
 
-                servicio = Service(
-                    executable_path=ChromeDriverManager().install())
-                op = webdriver.ChromeOptions()
-                # Ejecutar en modo headless (sin ventana visible))
-                # Evitar errores en algunos sistemas
-                op.add_argument('--disable-gpu')
-                # Evitar errores en algunos sistemas
-                op.add_argument('--no-sandbox')
-                op.add_argument('--ignore-certificate-errors')
-                op.add_argument('--ssl-protocol=any')
-                # op.headless = True
-                driver = webdriver.Chrome(service=servicio, options=op)
+                # servicio = Service(
+                #     executable_path=ChromeDriverManager().install())
+                # op = webdriver.ChromeOptions()
+                # # Ejecutar en modo headless (sin ventana visible))
+                # # Evitar errores en algunos sistemas
+                # op.add_argument('--disable-gpu')
+                # # Evitar errores en algunos sistemas
+                # op.add_argument('--no-sandbox')
+                # op.add_argument('--ignore-certificate-errors')
+                # op.add_argument('--ssl-protocol=any')
+                # # op.headless = True
+                # driver = webdriver.Chrome(service=servicio, options=op)
+                service = Service(verbose=True)
+                driver = webdriver.Edge(service=service)
                 driver.minimize_window()
                 # Realizar la solicitud HTTP a la URL
                 driver.get(txt_name.value)
@@ -271,7 +399,7 @@ async def main(page: ft.Page):
 
                 html = driver.page_source
                 soup = bs(html, 'html.parser')
-                driver.close()
+                driver.quit()
                 # Obtener el título de la página
                 dom = etree.HTML(str(soup))
                 titulo_h1 = dom.xpath(xpath_titulo)[0].text
@@ -350,6 +478,8 @@ async def main(page: ft.Page):
         "Obtener Datos!", on_click=btn_obtenerdatos_click)
     btn_obtenercapitulos = ft.ElevatedButton(
         "Obtener Capitulos", on_click=btn_obtenercapitulos_click, visible=False)
+    btn_guardar_pdf = ft.ElevatedButton(
+        "Guardar PDF", visible=False, icon=ft.icons.SAVE_ALT, on_click=btn_guardar_pdf_click)
     datatable = ft.DataTable(
         show_checkbox_column=True,
         border=ft.border.all(2),
@@ -371,6 +501,7 @@ async def main(page: ft.Page):
             btn_obtenerdatos,
             btn_obtenercapitulos,
             btn_guardar_epub,
+            btn_guardar_pdf,
             ft.Column(controls=[
                 capitulo, linea
             ])
