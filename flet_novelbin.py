@@ -362,17 +362,6 @@ async def main(page: ft.Page):
             chaptercontent_list = []
             pass
         try:
-            # servicio = Service(
-            #     executable_path=ChromeDriverManager().install())
-            # op = webdriver.ChromeOptions()
-            # # Ejecutar en modo headless (sin ventana visible))
-            # # Evitar errores en algunos sistemas
-            # op.add_argument('--disable-gpu')
-            # # Evitar errores en algunos sistemas
-            # op.add_argument('--no-sandbox')
-            # op.add_argument('--ignore-certificate-errors')
-            # op.add_argument('--ssl-protocol=any')
-            # op.headless = True
             index = 0
             while index < len(df_listchapters):
                 if capsprocesados < len(df_listchapters):
@@ -471,19 +460,6 @@ async def main(page: ft.Page):
             # xpath_titulo = '/html/body/div/main/div[2]/div[1]/div[1]/div[3]/h3'
             try:
                 data_obtenida.controls = []
-
-                # servicio = Service(
-                #     executable_path=ChromeDriverManager().install())
-                # op = webdriver.ChromeOptions()
-                # # Ejecutar en modo headless (sin ventana visible))
-                # # Evitar errores en algunos sistemas
-                # op.add_argument('--disable-gpu')
-                # # Evitar errores en algunos sistemas
-                # op.add_argument('--no-sandbox')
-                # op.add_argument('--ignore-certificate-errors')
-                # op.add_argument('--ssl-protocol=any')
-                # # op.headless = True
-                # driver = webdriver.Chrome(service=servicio, options=op)
                 service = Service(verbose=True)
 
                 driver = webdriver.Edge(service=service)
