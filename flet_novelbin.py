@@ -7,9 +7,11 @@ import flet as ft
 from lxml import etree
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-# from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.edge.service import Service
+# from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+# from selenium.webdriver.edge.service import Service
+# from selenium.webdriver.edge.options import Options
+import webdriver_manager
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup as bs
 import translators as ts
@@ -20,6 +22,10 @@ import sys
 import asyncio
 import re
 from fpdf import FPDF, HTML2FPDF, TitleStyle
+import undetected_chromedriver as uc
+import random
+from Proxy_List_Scrapper import Scrapper
+from zenrows import ZenRowsClient
 
 
 try:
@@ -28,6 +34,9 @@ try:
 except Exception as e:
     pass
 
+
+# scrapper = Scrapper(category='GOOGLE', print_err_trace=False)
+# dataproxies = scrapper.getProxies()
 
 # class CustomHTML2FPDF(HTML2FPDF):
 #     def render_toc(self, pdf, outline):
@@ -109,7 +118,45 @@ async def main(page: ft.Page):
             pdf.set_link(link, page=section.page_number)
             text = f'{" " * section.level * 2} {section.name} {"." * (60 - section.level*2 - len(section.name))} {section.page_number}'
             pdf.multi_cell(w=pdf.epw, h=pdf.font_size, txt=text, ln=1, align="C", link=link)
-            
+
+    def instanciar_driver():
+        # return uc.Chrome()
+        # index = random.randrange(0, dataproxies.len)
+        # ipdata = dataproxies.proxies[index].ip
+        # portdata = dataproxies.proxies[index].port
+        ipdata = '127.0.0.1'
+        portdata = '9150'
+        print(
+            f"{ipdata}:{portdata}")
+        op = webdriver.FirefoxOptions()
+        op.set_preference("network.proxy.type", 1)
+        # op.set_preference(
+        #     "network.proxy.http", f"{ipdata}")
+        # op.set_preference("network.proxy.http_port",
+        #                     portdata)
+        op.set_preference('network.proxy.socks',
+                            f"{ipdata}")
+        op.set_preference('network.proxy.socks_port', portdata)
+        op.set_preference('network.proxy.socks_remote_dns', False)
+        # op.set_preference(
+        #     "network.proxy.ssl", f"{ipdata}")
+        # op.set_preference("network.proxy.ssl_port", portdata)
+        # # Ejecutar en modo headless (sin ventana visible))
+        # op.add_argument('--disable-gpu')  # Evitar errores en algunos sistemas
+        # op.add_argument('--no-sandbox')  # Evitar errores en algunos sistemas
+        # profile = webdriver.FirefoxProfile()
+        # profile.set_preference('network.proxy.type', 1)
+        # profile.set_preference('network.proxy.socks', '127.0.0.1')
+        # profile.set_preference('network.proxy.socks_port', 9150)
+        return webdriver.Firefox(options=op)
+
+    async def requestantibot(url):
+        client = ZenRowsClient("f39778c23487d8f83165a6742e6e9c90a3607d10")
+        # params = {"js_render": "true", "premium_proxy": "true"}
+        print(url)
+        response = client.get(url)
+        print(response.text)
+        return str(response.text)
 
     async def btn_guardar_pdf_click(e):
         global df_contentchapters
@@ -295,7 +342,6 @@ async def main(page: ft.Page):
             path, 'epub', tituloarchivo+'.epub'), book, {})
         # print(dFrame)
         print('archivo epub de ', tituloarchivo, ' creado')
-        btn_reset.visible = True
         await page.update_async()
 
     async def guardar_csv():
@@ -376,20 +422,19 @@ async def main(page: ft.Page):
                     await page.update_async()
                     break
 
-                # driver = webdriver.Chrome(service=servicio, options=op)
-                service = Service(verbose=True)
-
-                driver = webdriver.Edge(service=service)
+                driver = instanciar_driver()
                 # driver.minimize_window()
                 capitulo.value = df_listchapters['nombre'][index]
                 print(df_listchapters['nombre'][index])
                 contenido_p_en = []
                 driver.get(df_listchapters['urls'][index])
+                time.sleep(5)
                 driver.execute_script(
                     "window.scrollBy(0,document.body.scrollHeight/2);")
                 time.sleep(2)
+                # resnovelbin = await requestantibot(str(df_listchapters['urls'][index]).replace('novel-bin.net/novel-bin','thenovelbin.org/Thenovelbintop1'))
+                # soup = bs(resnovelbin, 'html.parser')
                 soup = bs(driver.page_source, 'html.parser')
-                # driver.close()
                 driver.quit()
                 contentcapter = soup.find('div', id='chr-content')
                 contentcapter_p = contentcapter.find_all('p')
@@ -452,7 +497,7 @@ async def main(page: ft.Page):
         if not txt_name.value:
             txt_name.error_text = "El Campo no puede estar en blanco"
             await page.update_async()
-        if "https://novel-bin.net/novel-bin/" not in txt_name.value:
+        if "https://novel-bin.net/novel-bin/" not in txt_name.value and "https://thenovelbin.org/Thenovelbintop1/" not in txt_name.value:
             txt_name.error_text = f"La URL no es de {page.title}. Proporcione una URL de novela válida."
             await page.update_async()
         else:
@@ -460,9 +505,7 @@ async def main(page: ft.Page):
             # xpath_titulo = '/html/body/div/main/div[2]/div[1]/div[1]/div[3]/h3'
             try:
                 data_obtenida.controls = []
-                service = Service(verbose=True)
-
-                driver = webdriver.Edge(service=service)
+                driver = instanciar_driver()
                 # driver.minimize_window()
                 # Realizar la solicitud HTTP a la URL
                 driver.get(txt_name.value)

@@ -12,3 +12,7 @@ translators
 undetected-chromedriver
 urllib3
 webdriver_manager
+Proxy-List-Scrapper
+undetected-edgedriver
+zenrows
+cloudscraper
