@@ -1,10 +1,13 @@
 from random import choices
-from django.db import models
+# from django.db import models
+from djongo import models
+from djongo.models.fields import ObjectIdField
 
 # Create your models here.
 
 
 class Sitio(models.Model):
+    id = ObjectIdField()
     nombre = models.CharField(max_length=100, blank=True)
     url = models.CharField(max_length=100, blank=True)
     idioma = models.CharField(max_length=100, blank=True, choices=(
@@ -22,6 +25,7 @@ class Sitio(models.Model):
 
 
 class EstructuraSitio(models.Model):
+    id = ObjectIdField()
     sitio = models.ForeignKey(Sitio, on_delete=models.CASCADE)
     orden_selector = models.PositiveIntegerField(default=0)
     selector = models.CharField(max_length=100, blank=True)
@@ -31,6 +35,7 @@ class EstructuraSitio(models.Model):
 
 
 class Novela(models.Model):
+    id = ObjectIdField()
     sitio = models.ForeignKey(Sitio, on_delete=models.CASCADE)
     nombre = models.CharField(max_length=100, blank=True)
     sinopsis = models.TextField(blank=True)
@@ -49,6 +54,7 @@ class Novela(models.Model):
 
 
 class Capitulo(models.Model):
+    id = ObjectIdField()
     novela = models.ForeignKey(Novela, on_delete=models.CASCADE)
     nombre = models.TextField(blank=True)
     url = models.TextField(blank=True)
@@ -58,6 +64,7 @@ class Capitulo(models.Model):
 
 
 class ContenidoCapitulo(models.Model):
+    id = ObjectIdField()
     capitulo = models.ForeignKey(Capitulo, on_delete=models.CASCADE)
     texto = models.TextField(blank=True)
 

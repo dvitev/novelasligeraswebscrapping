@@ -5,17 +5,33 @@ export default function page() {
     <>
       <div className="novel">
         <div className="novelPanel">
-          <Iframe src={'https://novel-bin.net/'}/>
+          <Iframe src={""} />
         </div>
         <div className="novelOptions">
-            <div className=""><button>a</button></div>
-            <div className=""><button>a</button></div>
-            <div className=""><button>a</button></div>
-            <div className=""><button>a</button></div>
-            <div className=""><button>a</button></div>
-            <div className=""><button>a</button></div>
-            <div className=""><button>a</button></div>
-            <div className=""><button>a</button></div>
+          <div className="">
+            <button>a</button>
+          </div>
+          <div className="">
+            <button>a</button>
+          </div>
+          <div className="">
+            <button>a</button>
+          </div>
+          <div className="">
+            <button>a</button>
+          </div>
+          <div className="">
+            <button>a</button>
+          </div>
+          <div className="">
+            <button>a</button>
+          </div>
+          <div className="">
+            <button>a</button>
+          </div>
+          <div className="">
+            <button>a</button>
+          </div>
         </div>
       </div>
     </>
