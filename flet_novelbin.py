@@ -571,8 +571,7 @@ async def main(page: ft.Page):
                 data_obtenida.visible = True
                 btn_obtenerdatos.disabled = False
                 btn_obtenercapitulos.visible = True
-                df_listchapters.to_csv(os.path.join(
-                    os.getcwd(), 'chapters', tituloarchivo+'.csv'), index=None)
+                df_listchapters.to_csv(os.path.join(os.getcwd(), 'chapters', tituloarchivo+'.csv'), index=None)
             except Exception as e:
                 btn_obtenerdatos.disabled = False
                 data_obtenida.controls = ft.Text("Error")

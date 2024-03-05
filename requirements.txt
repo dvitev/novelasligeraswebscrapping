@@ -16,3 +16,11 @@ Proxy-List-Scrapper
 undetected-edgedriver
 zenrows
 cloudscraper
+django
+djangorestframework
+django-filter
+markdown
+pymongo[snappy,gssapi,srv,tls] == 3.12.3
+dnspython
+mongoengine
+djongo
