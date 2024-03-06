@@ -7,16 +7,23 @@ const fuente = Montserrat({
   subsets: ["latin"],
 });
 
+const cargarPaginas = () => {
+  return fetch("http://localhost:8000/api/sitios/?format=json", { cache: "no-store" })
+    .then((res) => res.json())
+    .then((datos) => datos);
+};
+
 export const metadata = {
   title: "Next.js",
   description: "Generado por David Vite Vergara",
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const datos = await cargarPaginas();
   return (
     <html lang="es">
       <body>
-        <Nav />
+        <Nav datos={datos}/>
         <div className={fuente.className}>{children}</div>
       </body>
     </html>

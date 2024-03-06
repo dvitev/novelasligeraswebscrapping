@@ -7,16 +7,18 @@ const fuente = Montserrat({
   variable: '--mifont'
 });
 
-export default function Nav() {
+export default function Nav({ datos }) {
   return (
-    <>
-      <nav className={fuente.className}>
-        <Link href="/">Home</Link>
-        {/* <Link href="/about">About</Link> */}
-        <Link href="/personas">Personas</Link>
-        {/* <Link href="/quienesSomos">Quienes Somos</Link> */}
-        <Link href="/novelbin">Novel Bin</Link>
-      </nav>
-    </>
+    <nav className={fuente.className}>
+      <Link href="/">
+        Home
+      </Link>
+      <Link href="/personas">
+        Personas
+      </Link>
+      {datos.map((novel, idx) => (
+        <Link key={idx} href={`/sitios/${novel.id}`}>{novel.nombre}</Link>
+      ))}
+    </nav>
   );
 }
