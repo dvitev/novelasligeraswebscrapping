@@ -23,13 +23,13 @@ class EstructuraSitioAdmin(ImportExportModelAdmin, admin.ModelAdmin):
 class NovelaAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in Novela._meta.fields]
     search_field = [x.name for x in Novela._meta.fields]
-    list_filter = ['sitio','status']
+    list_filter = ['status']
     resource_class = MyResorcesAdmin
 
 class CapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in Capitulo._meta.fields]
     search_field = [x.name for x in Capitulo._meta.fields]
-    list_filter = ['novela']
+    # list_filter = ['novela']
     resource_class = MyResorcesAdmin
 
 class ContenidoCapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):

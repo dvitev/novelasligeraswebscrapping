@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.response import Response
+from bson.objectid import ObjectId
 from .serializers import *
 from .models import *
 
@@ -11,7 +12,7 @@ class SitioViewSet(viewsets.ModelViewSet):
         print(pk)
         print(self.kwargs['pk'])
         try:
-            sitio = Sitio.objects.get(pk=int(pk))
+            sitio = Sitio.objects.get(_id=ObjectId(pk))
             serializer = SitioSerializer(sitio)
             return Response(serializer.data)
         except Sitio.DoesNotExist:

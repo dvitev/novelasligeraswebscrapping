@@ -17,7 +17,7 @@ export default function Nav({ datos }) {
         Personas
       </Link>
       {datos.map((novel, idx) => (
-        <Link key={idx} href={`/sitios/${novel.id}`}>{novel.nombre}</Link>
+        <Link key={idx} href={`/sitios/${novel._id.toString()}`}>{novel.nombre}</Link>
       ))}
     </nav>
   );

@@ -16,14 +16,14 @@ router.register('contenidocapitulos', ContenidoCapituloViewSet, basename='conten
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('sitios/<int:pk>/',
+    path('sitios/<str:pk>/',
          SitioViewSet.as_view({'get': 'retrieve'}), name='sitio-detail'),
-    path('estructurasitios/<int:pk>/', EstructuraSitioViewSet.as_view(
+    path('estructurasitios/<str:pk>/', EstructuraSitioViewSet.as_view(
         {'get': 'retrieve'}), name='estructurasitio-detail'),
-    path('novelas/<int:pk>/',
+    path('novelas/<str:pk>/',
          NovelaViewSet.as_view({'get': 'retrieve'}), name='novela-detail'),
-    path('capitulos/<int:pk>/',
+    path('capitulos/<str:pk>/',
          CapituloViewSet.as_view({'get': 'retrieve'}), name='capitulo-detail'),
-    path('contenidocapitulos/<int:pk>/', ContenidoCapituloViewSet.as_view(
+    path('contenidocapitulos/<str:pk>/', ContenidoCapituloViewSet.as_view(
         {'get': 'retrieve'}), name='contenidocapitulo-detail'),
 ]
