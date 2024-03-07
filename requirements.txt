@@ -27,3 +27,4 @@ djongo==1.3.6
 python-dotenv
 django-import-export
 django-cors-headers
+django-filter

@@ -24,13 +24,15 @@ class Sitio(models.Model):
     def __str__(self):
         return self.nombre
 
+def choise_sitio():
+        sitios = Sitio.objects.all().values()
+        choises =[(str(x['_id']), x['nombre']) for x in sitios]
+        # print(choises)
+        return choises
 
 class EstructuraSitio(models.Model):
     _id = models.ObjectIdField()
-    sitio = models.EmbeddedField(
-        model_container=Sitio
-    )
-    # sitio = models.ForeignKey(Sitio, on_delete=models.CASCADE)
+    sitio_id = models.CharField(max_length=100, blank=True, choices=choise_sitio())
     orden_selector = models.PositiveIntegerField(default=0)
     selector = models.CharField(max_length=100, blank=True)
     marcador = models.CharField(max_length=100, blank=True)
@@ -38,11 +40,6 @@ class EstructuraSitio(models.Model):
     nombre_selector = models.CharField(max_length=100, blank=True)
     objects = models.DjongoManager()
 
-def choise_sitio():
-        sitios = Sitio.objects.all().values()
-        choises =[(str(x['_id']), x['nombre']) for x in sitios]
-        # print(choises)
-        return choises
 
 class Novela(models.Model):
     _id = models.ObjectIdField()
@@ -65,13 +62,16 @@ class Novela(models.Model):
         return f"{self.nombre} - {self.sitio_id}"
     
 
+def choise_novela():
+        sitios = Novela.objects.all().values()
+        choises =[(str(x['_id']), x['nombre']) for x in sitios]
+        # print(choises)
+        return choises
+
 
 class Capitulo(models.Model):
     _id = models.ObjectIdField()
-    novelas = models.EmbeddedField(
-        model_container=Novela
-    )
-    # novela = models.ForeignKey(Novela, on_delete=models.CASCADE)
+    novela_id = models.CharField(max_length=100, blank=True, choices=choise_novela())
     nombre = models.TextField(blank=True)
     url = models.TextField(blank=True)
     objects = models.DjongoManager()
@@ -80,14 +80,17 @@ class Capitulo(models.Model):
         return f"{self.novela} - {self.nombre}"
 
 
+def choise_capitulo():
+    capitulos = Capitulo.objects.all().values()
+    choises = [(str(x['_id']), x['nombre']) for x in capitulos]
+    return choises
+
 class ContenidoCapitulo(models.Model):
     _id = models.ObjectIdField()
-    capitulo = models.EmbeddedField(
-        model_container=Capitulo
-    )
-    # capitulo = models.ForeignKey(Capitulo, on_delete=models.CASCADE)
+    novela_id = models.CharField(max_length=100, blank=True, choices=choise_novela())
+    capitulo_id = models.CharField(max_length=100, blank=True, choices=choise_capitulo())
     texto = models.TextField(blank=True)
     objects = models.DjongoManager()
 
     def __str__(self):
-        return f"{self.capitulo} - {self.texto}"
+        return f"{self.capitulo_id} - {self.texto}"

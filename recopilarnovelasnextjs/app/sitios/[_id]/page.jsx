@@ -19,9 +19,9 @@ const cargarNovelas = (sitio_id) => {
 export default async function page({ params }) {
   const { _id } = params;
   const datos = await cargarSitio(_id);
-  console.log(datos);
+  // console.log(datos);
   const novelas = await cargarNovelas(datos._id);
-  console.log(novelas);
+  // console.log(novelas);
   return (
     <>
       <h1>

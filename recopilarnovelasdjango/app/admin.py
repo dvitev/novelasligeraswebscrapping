@@ -17,25 +17,25 @@ class SitioAdmin(ImportExportModelAdmin, admin.ModelAdmin):
 class EstructuraSitioAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in EstructuraSitio._meta.fields]
     search_field = ['selector','tipo_selector']
-    list_filter = ['tipo_selector']
+    list_filter = ['sitio_id','tipo_selector']
     resource_class = MyResorcesAdmin
 
 class NovelaAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in Novela._meta.fields]
     search_field = [x.name for x in Novela._meta.fields]
-    list_filter = ['status']
+    list_filter = ['sitio_id','status']
     resource_class = MyResorcesAdmin
 
 class CapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in Capitulo._meta.fields]
     search_field = [x.name for x in Capitulo._meta.fields]
-    # list_filter = ['novela']
+    list_filter = ['novela_id']
     resource_class = MyResorcesAdmin
 
 class ContenidoCapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in ContenidoCapitulo._meta.fields]
     search_field = [x.name for x in ContenidoCapitulo._meta.fields]
-    list_filter = ['capitulo']
+    list_filter = ['capitulo_id']
     resource_class = MyResorcesAdmin
 
 
