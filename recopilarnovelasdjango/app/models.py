@@ -20,30 +20,34 @@ class Sitio(models.Model):
         ('ko', 'Koreano'),
     ))
     objects = models.DjongoManager()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.nombre
 
 def choise_sitio():
-        sitios = Sitio.objects.all().values()
-        choises =[(str(x['_id']), x['nombre']) for x in sitios]
-        # print(choises)
-        return choises
+        return [(str(x['_id']), x['nombre']) for x in Sitio.objects.all().values()]
 
 class EstructuraSitio(models.Model):
     _id = models.ObjectIdField()
-    sitio_id = models.CharField(max_length=100, blank=True, choices=choise_sitio())
+    sitio_id = models.CharField(max_length=100, blank=True)
     orden_selector = models.PositiveIntegerField(default=0)
     selector = models.CharField(max_length=100, blank=True)
     marcador = models.CharField(max_length=100, blank=True)
     tipo_selector = models.CharField(max_length=100, blank=True)
     nombre_selector = models.CharField(max_length=100, blank=True)
     objects = models.DjongoManager()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.sitio_id} - {self.selector}"
 
 
 class Novela(models.Model):
     _id = models.ObjectIdField()
-    sitio_id = models.CharField(max_length=100, blank=True, choices=choise_sitio())
+    sitio_id = models.CharField(max_length=100, blank=True)
     nombre = models.CharField(max_length=100, blank=True)
     sinopsis = models.TextField(blank=True)
     autor = models.CharField(max_length=100, blank=True)
@@ -57,40 +61,41 @@ class Novela(models.Model):
     url = models.CharField(max_length=1000)
     imagen_url = models.CharField(max_length=1000, blank=True)
     objects = models.DjongoManager()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.nombre} - {self.sitio_id}"
     
 
 def choise_novela():
-        sitios = Novela.objects.all().values()
-        choises =[(str(x['_id']), x['nombre']) for x in sitios]
-        # print(choises)
-        return choises
+        return [(str(x['_id']), x['nombre']) for x in Novela.objects.all().values()]
 
 
 class Capitulo(models.Model):
     _id = models.ObjectIdField()
-    novela_id = models.CharField(max_length=100, blank=True, choices=choise_novela())
+    novela_id = models.CharField(max_length=100, blank=True)
     nombre = models.TextField(blank=True)
     url = models.TextField(blank=True)
     objects = models.DjongoManager()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.novela} - {self.nombre}"
+        return f"{self.novela_id} - {self.nombre}"
 
 
 def choise_capitulo():
-    capitulos = Capitulo.objects.all().values()
-    choises = [(str(x['_id']), x['nombre']) for x in capitulos]
-    return choises
+    return [(str(x['_id']), x['nombre']) for x in Capitulo.objects.all().values()]
 
 class ContenidoCapitulo(models.Model):
     _id = models.ObjectIdField()
-    novela_id = models.CharField(max_length=100, blank=True, choices=choise_novela())
-    capitulo_id = models.CharField(max_length=100, blank=True, choices=choise_capitulo())
+    novela_id = models.CharField(max_length=100, blank=True)
+    capitulo_id = models.CharField(max_length=100, blank=True)
     texto = models.TextField(blank=True)
     objects = models.DjongoManager()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.capitulo_id} - {self.texto}"
+        return f"{self.novela_id} - {self.capitulo_id} - {self.texto}"

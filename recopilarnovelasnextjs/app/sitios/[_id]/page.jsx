@@ -1,15 +1,16 @@
 import React from "react";
-import Iframe from "@/components/Iframe";
+
 import ListadoNovelas from "./ListadoNovelas";
 
 const cargarSitio = (id) => {
   return fetch(`http://localhost:8000/api/sitios/${id}/`, { cache: "no-store" })
     .then((res) => res.json())
-    .then((datos) => datos);
+    .then((datos) => datos[0]);
 };
 
 const cargarNovelas = (sitio_id) => {
-  return fetch(`http://localhost:8000/api/novelas/sitio/${sitio_id}/`, {
+  console.log(sitio_id)
+  return fetch(`http://localhost:8000/api/novelassitio/${sitio_id}/`, {
     cache: "no-store",
   })
     .then((res) => res.json())
@@ -18,9 +19,11 @@ const cargarNovelas = (sitio_id) => {
 
 export default async function page({ params }) {
   const { _id } = params;
+  // console.log(_id)
   const datos = await cargarSitio(_id);
-  // console.log(datos);
-  const novelas = await cargarNovelas(datos._id);
+  // await console.log(datos);
+  const novelas = await cargarNovelas(datos._id)
+  
   // console.log(novelas);
   return (
     <>

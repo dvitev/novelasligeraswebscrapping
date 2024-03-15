@@ -46,22 +46,60 @@ nav{
 }
 .novelOptions{
   width: 25%;
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(200px, 1fr));
+  gap: 10px;
   justify-content: center;
   align-items: center;
   
 }
-.novelOptions div{
+.novelOptions a{
   width: 50%;
-  height: 40px;
+  height: 100%;
   margin: 0 auto;
   padding-left: 5px;
   padding-right: 5px;
-}
-
-.novelOptions div button{
-  width: 100%;
-  height: 100%;
   font-size: 1.1rem;
+  text-decoration: none;
+}
+.listadoCapitulos{
+  height: 500px;
+  width: 30%;
+  overflow-y: auto;
+}
+.listadoCapitulos .capitulo{
+  margin: 4px auto;
+  border-radius: 5px;
+  border: black 1px solid;
+}
+.listadoCapitulos .capitulo:hover{
+  background-color: #3247b1;
+}
+.listadoCapitulos .capituloactivo{
+  background-color: #3247b1;
+  color: white;
+  font-size: 1.2rem;
+  font-family: monospace;
+}
+.opcionesCapituloNovela{
+  display: flex;
+  flex-direction: row;
+}
+.opcionesCapituloNovela div{
+  display: flex;
+  background-color: #3247b1;
+  width: calc(50% - 1.5em);
+  margin-left: 0.75em;
+  border-radius: 5px;
+  align-content: center;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  color: whitesmoke;
+}
+.opcionesCapituloNovela div:hover{
+  background-color: red;
+  color: #0f0f0f;
+  font-size: 1.5rem;
+  height: 50px;
 }

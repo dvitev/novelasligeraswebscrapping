@@ -10,6 +10,7 @@ router.register('estructurasitios', EstructuraSitioViewSet,
 router.register('novelas', NovelaViewSet, basename='novelas')
 router.register('novelassitio', NovelaSitioViewSet, basename='novelassitio')
 router.register('capitulos', CapituloViewSet, basename='capitulos')
+router.register('capitulosnovela',CapituloNovelaViewSet, basename='capitulosnovela')
 router.register('contenidocapitulos', ContenidoCapituloViewSet,
                 basename='contenidocapitulos')
 # ...registrar las otras vistas similares

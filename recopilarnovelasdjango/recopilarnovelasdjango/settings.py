@@ -113,16 +113,26 @@ WSGI_APPLICATION = 'recopilarnovelasdjango.wsgi.application'
 #     # }
 # }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'djongo',
+#         'NAME': 'recopilarnovelas',
+#         'ENFORCE_SCHEMA': False,
+#         'CLIENT': {
+#             'host': os.environ.get('MONGODB_URL'),
+#         }
+#     }
+# }
+
 DATABASES = {
     'default': {
         'ENGINE': 'djongo',
         'NAME': 'recopilarnovelas',
-        'ENFORCE_SCHEMA': False,
-        'CLIENT': {
-            'host': os.environ.get('MONGODB_URL'),
-        }
+        'HOST': 'localhost',
+        'PORT': 27017,
     }
 }
+
 
 
 # Password validation

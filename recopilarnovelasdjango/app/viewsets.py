@@ -85,6 +85,23 @@ class CapituloViewSet(viewsets.ModelViewSet):
         return Response(serializer)
 
 
+class CapituloNovelaViewSet(viewsets.ReadOnlyModelViewSet):
+    # queryset = Novela.objects.all()
+    serializer_class = NovelaSerializer
+
+    def get_queryset(self):
+        if 'pk' in self.kwargs:
+            queryset = Capitulo.objects.filter(novela_id=str(self.kwargs['pk']))
+            return queryset
+        else:
+            return []
+
+    def retrieve(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.serializer_class(queryset, many=True).data
+        return Response(serializer)
+
+
 class ContenidoCapituloViewSet(viewsets.ModelViewSet):
     # queryset = ContenidoCapitulo.objects.all()
     serializer_class = ContenidoCapituloSerializer

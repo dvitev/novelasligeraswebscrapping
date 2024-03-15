@@ -1,6 +1,37 @@
-import React from "react";
+import ListadoCapitulos from "./ListadoCapitulos";
 
-export default function page({ params }) {
+const cargarNovela = (id) => {
+  return fetch(`http://localhost:8000/api/novelas/${id}/`, {
+    cache: "no-store",
+  })
+    .then((res) => res.json())
+    .then((datos) => datos[0]);
+};
+
+const cargarCapitulosNovela = (id) => {
+  return fetch(`http://localhost:8000/api/capitulosnovela/${id}/`, {
+    cache: "no-store",
+  })
+    .then((res) => res.json())
+    .then((datos) => datos);
+};
+
+const enviarContenidoCapitulo=()=>{
+
+};
+
+export default async function page({ params }) {
   const { _id } = params;
-  return <h1>{_id}</h1>;
+  const datos = await cargarNovela(_id);
+  // console.log(datos);
+  const capitulos = await cargarCapitulosNovela(_id);
+  // console.log(capitulos);
+  return (
+    <>
+      <h1>
+        {datos.nombre}
+      </h1>
+      <ListadoCapitulos capitulos={capitulos} novela_id={_id}/>
+    </>
+  );
 }

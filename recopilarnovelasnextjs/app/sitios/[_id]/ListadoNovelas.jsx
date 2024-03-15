@@ -19,7 +19,7 @@ export default function ListadoNovelas({ novelas }) {
               height={200}
             />
             <p>{novela.nombre}</p>
-            <p>{novela.genero}</p>
+            {/* <p>{novela.genero}</p> */}
           </Link>
         ))
       ) : (

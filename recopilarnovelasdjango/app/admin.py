@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import *
+from .forms import *
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 
@@ -18,24 +19,28 @@ class EstructuraSitioAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in EstructuraSitio._meta.fields]
     search_field = ['selector','tipo_selector']
     list_filter = ['sitio_id','tipo_selector']
+    form = EstructuraSitioForm
     resource_class = MyResorcesAdmin
 
 class NovelaAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in Novela._meta.fields]
     search_field = [x.name for x in Novela._meta.fields]
     list_filter = ['sitio_id','status']
+    form = NovelaForm
     resource_class = MyResorcesAdmin
 
 class CapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in Capitulo._meta.fields]
     search_field = [x.name for x in Capitulo._meta.fields]
     list_filter = ['novela_id']
+    form = CapituloForm
     resource_class = MyResorcesAdmin
 
 class ContenidoCapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in ContenidoCapitulo._meta.fields]
     search_field = [x.name for x in ContenidoCapitulo._meta.fields]
     list_filter = ['capitulo_id']
+    form = ContenidoCapituloForm
     resource_class = MyResorcesAdmin
 
 
