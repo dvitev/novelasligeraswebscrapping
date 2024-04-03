@@ -8,7 +8,7 @@ const fuente = Montserrat({
 });
 
 const cargarPaginas = () => {
-  return fetch("http://localhost:8000/api/sitios/?format=json")
+  return fetch("http://192.168.1.11:8000/api/sitios/?format=json")
     .then((res) => res.json())
     .then((datos) => datos);
 };
