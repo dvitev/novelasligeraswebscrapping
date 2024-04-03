@@ -128,7 +128,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'djongo',
         'NAME': 'recopilarnovelas',
-        'HOST': 'localhost',
+        'HOST': '192.168.1.11',
         'PORT': 27017,
     }
 }
