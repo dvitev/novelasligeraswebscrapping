@@ -130,6 +130,10 @@ DATABASES = {
         'NAME': 'recopilarnovelas',
         'HOST': '192.168.1.11',
         'PORT': 27017,
+        'CLIENT': {
+            'host': '192.168.1.11',
+            'port': 27017
+        }
     }
 }
 
