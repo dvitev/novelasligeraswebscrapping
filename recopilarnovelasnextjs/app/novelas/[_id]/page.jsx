@@ -1,7 +1,7 @@
 import ListadoCapitulos from "./ListadoCapitulos";
 
 const cargarNovela = (id) => {
-  return fetch(`http://localhost:8000/api/novelas/${id}/`, {
+  return fetch(`http://192.168.1.11:8000/api/novelas/${id}/`, {
     cache: "no-store",
   })
     .then((res) => res.json())
@@ -9,7 +9,7 @@ const cargarNovela = (id) => {
 };
 
 const cargarCapitulosNovela = (id) => {
-  return fetch(`http://localhost:8000/api/capitulosnovela/${id}/`, {
+  return fetch(`http://192.168.1.11:8000/api/capitulosnovela/${id}/`, {
     cache: "no-store",
   })
     .then((res) => res.json())

@@ -3,14 +3,14 @@ import React from "react";
 import ListadoNovelas from "./ListadoNovelas";
 
 const cargarSitio = (id) => {
-  return fetch(`http://localhost:8000/api/sitios/${id}/`, { cache: "no-store" })
+  return fetch(`http://192.168.1.11:8000/api/sitios/${id}/`, { cache: "no-store" })
     .then((res) => res.json())
     .then((datos) => datos[0]);
 };
 
 const cargarNovelas = (sitio_id) => {
   console.log(sitio_id)
-  return fetch(`http://localhost:8000/api/novelassitio/${sitio_id}/`, {
+  return fetch(`http://192.168.1.11:8000/api/novelassitio/${sitio_id}/`, {
     cache: "no-store",
   })
     .then((res) => res.json())
