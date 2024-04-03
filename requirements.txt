@@ -28,3 +28,5 @@ python-dotenv
 django-import-export
 django-cors-headers
 django-filter
+google_trans_new
+langdetect

@@ -13,6 +13,7 @@ router.register('capitulos', CapituloViewSet, basename='capitulos')
 router.register('capitulosnovela',CapituloNovelaViewSet, basename='capitulosnovela')
 router.register('contenidocapitulos', ContenidoCapituloViewSet,
                 basename='contenidocapitulos')
+router.register('generos', GeneroViewSet, basename='generos')
 # ...registrar las otras vistas similares
 
 # urlpatterns = router.urls

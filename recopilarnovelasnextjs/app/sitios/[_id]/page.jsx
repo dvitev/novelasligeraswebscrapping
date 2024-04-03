@@ -21,7 +21,7 @@ export default async function page({ params }) {
   const { _id } = params;
   // console.log(_id)
   const datos = await cargarSitio(_id);
-  // await console.log(datos);
+  await console.log(datos);
   const novelas = await cargarNovelas(datos._id)
   
   // console.log(novelas);

@@ -59,8 +59,12 @@ class NovelaSitioViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         if 'pk' in self.kwargs:
+            queryset_list = []
             queryset = Novela.objects.filter(sitio_id=str(self.kwargs['pk']))
-            return queryset
+            for novela in queryset:
+                if 'Yaoi' not in novela.genero and 'Lgbt+' not in novela.genero and 'Yuri' not in novela.genero:
+                    queryset_list.append(novela)
+            return queryset_list
         else:
             return []
 
@@ -115,3 +119,27 @@ class ContenidoCapituloViewSet(viewsets.ModelViewSet):
             queryset = [ContenidoCapitulo.objects.get(_id=ObjectId(kwargs['pk']))]
         serializer = self.serializer_class(queryset, many=True).data
         return Response(serializer)
+
+
+class GeneroViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = GeneroSerializer
+
+    def get_queryset(self):
+        # Obtener todos los géneros de la base de datos
+        generos = Novela.objects.values_list('genero', flat=True)
+
+        # Separar los géneros por comas y unirlos en una sola lista
+        generos_list = []
+        for genero in generos:
+            generos_list.extend(genero.split(','))
+
+        # Eliminar duplicados y convertir a una lista de strings únicos
+        generos_list = list(set(genero.strip() for genero in generos_list if genero.strip() not in ['Yaoi', 'Lgbt+', 'Yuri']))
+
+        return sorted(generos_list)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.serializer_class(data={'generos': queryset})
+        serializer.is_valid()
+        return Response(serializer.data)
