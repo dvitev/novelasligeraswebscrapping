@@ -306,16 +306,16 @@ async def main(page: ft.Page):
             pass
 
         try:
+            service = Service(verbose=True)
+            driver = webdriver.Edge(service=service)
             for index in range(len(df_listchapters)-capsprocesados, 0, -1):
-                service = Service(verbose=True)
-                driver = webdriver.Edge(service=service)
                 capitulo.value = df_listchapters['nombre'][index-1]
                 print(df_listchapters['nombre'][index-1])
                 contenido_p_en = []
                 driver.get(df_listchapters['urls'][index-1])
                 time.sleep(5)
                 soup = bs(driver.page_source, 'html.parser')
-                driver.quit()
+                # driver.quit()
                 contentcapter = soup.find('div', class_='entry-content_wrap')
                 contentcapter_p = contentcapter.find_all('p')
 
@@ -343,6 +343,7 @@ async def main(page: ft.Page):
                 linea.value = ''
                 await guardar_csv()
                 await page.update_async()
+            driver.quit()
             # driver.close()
             # df_contentchapters = pd.DataFrame(
                 # chaptercontent_list, columns=['nombre', 'contenido'])
@@ -391,7 +392,7 @@ async def main(page: ft.Page):
                 # driver = webdriver.Chrome(service=servicio, options=op)
                 service = Service(verbose=True)
                 driver = webdriver.Edge(service=service)
-                driver.minimize_window()
+                # driver.minimize_window()
                 # Realizar la solicitud HTTP a la URL
                 driver.get(txt_name.value)
 
