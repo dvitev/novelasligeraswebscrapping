@@ -27,8 +27,9 @@ export default function ListadoNovelas({ novelas }) {
   const obtenerEpub = ({ _id, nombre }) => {
     alert(`Generando Epub de Novela ${nombre} con ID ${_id}`);
   };
-  const obtenerPdf = ({ _id, nombre }) => {
-    alert(`Generando PDF de Novela ${nombre} con ID ${_id}`);
+  const obtenerPdf = (novela_id) => {
+    const url = `http://192.168.1.11:8000/api/generar_pdf/${novela_id}/`;
+    window.open(url, '_blank');
   };
 
   return (
@@ -61,7 +62,7 @@ export default function ListadoNovelas({ novelas }) {
               key={`${idx}_pdf`}
               className="PDFNovel"
               onClick={() => {
-                obtenerPdf(novela);
+                obtenerPdf(novela._id);
               }}
             >
               PDF

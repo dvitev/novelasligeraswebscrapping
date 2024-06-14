@@ -7,6 +7,7 @@ import time
 from fpdf import FPDF
 
 
+
 class PDF(FPDF):
     # HTML2FPDF_CLASS = CustomHTML2FPDF
     def header(self):

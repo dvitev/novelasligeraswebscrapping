@@ -185,3 +185,5 @@ recopilarnovelasnextjs\node_modules
 node_modules/
 package-*.json
 recopilarnovelasdjango\recopilarnovelasdjango\.env
+recopilarnovelasdjango\static\images
+recopilarnovelasdjango\static\pdf
