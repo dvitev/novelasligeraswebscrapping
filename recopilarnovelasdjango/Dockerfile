@@ -21,7 +21,7 @@ RUN mkdir -p /app/static/epub
 # Set correct permissions
 RUN chmod -R 755 /app/static
 
-RUN python manage.py collectstatic
+# RUN python manage.py collectstatic
 
 # Expone el puerto 8000
 EXPOSE 8000
