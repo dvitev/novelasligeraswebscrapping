@@ -16,6 +16,7 @@ COPY . /app/
 # Make sure the static and media folders exist
 RUN mkdir -p /app/static/images
 RUN mkdir -p /app/static/pdf
+RUN mkdir -p /app/static/epub
 
 # Set correct permissions
 RUN chmod -R 755 /app/static

@@ -24,8 +24,9 @@ export default function ListadoNovelas({ novelas }) {
     }
   }, [generoFiltrado, novelas]);
 
-  const obtenerEpub = ({ _id, nombre }) => {
-    alert(`Generando Epub de Novela ${nombre} con ID ${_id}`);
+  const obtenerEpub = (novela_id) => {
+    const url = `http://192.168.1.11:8000/api/generar_epub/${novela_id}/`;
+    window.open(url, '_blank');
   };
   const obtenerPdf = (novela_id) => {
     const url = `http://192.168.1.11:8000/api/generar_pdf/${novela_id}/`;
@@ -53,7 +54,7 @@ export default function ListadoNovelas({ novelas }) {
               key={`${idx}_epub`}
               className="EpubNovel"
               onClick={() => {
-                obtenerEpub(novela);
+                obtenerEpub(novela._id);
               }}
             >
               Epub

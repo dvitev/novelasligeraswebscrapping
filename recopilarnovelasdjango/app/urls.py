@@ -2,7 +2,7 @@ from os import name
 from django.urls import path, include
 from rest_framework import routers
 from .viewsets import *
-from .views import generar_pdf
+from .views import generar_pdf, generar_epub
 
 router = routers.DefaultRouter()
 router.register('sitios', SitioViewSet, basename='sitios')
@@ -23,4 +23,5 @@ router.register('generos', GeneroViewSet, basename='generos')
 urlpatterns = [
     path('', include(router.urls)),
     path('generar_pdf/<str:novela_id>/', generar_pdf, name='generar_pdf'),
+    path('generar_epub/<str:novela_id>/', generar_epub, name='generar_epub'),
 ]
