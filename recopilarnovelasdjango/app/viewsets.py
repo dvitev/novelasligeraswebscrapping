@@ -35,11 +35,15 @@ class NovelaViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NovelaSerializer
     
     def get_queryset(self):
-        return Novela.objects.all()
+        pk = self.kwargs.get('pk')
+        # Obtener todos los géneros de la base de datos
+        if pk:
+            return Novela.objects.filter(sitio_id=pk)
+        return Novela.objects.none()
 
     def retrieve(self, request, *args, **kwargs):
-        obj = get_object_or_404(Novela, _id=ObjectId(kwargs['pk']))
-        serializer = self.serializer_class(obj)
+        queryset = self.get_queryset()
+        serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
 
