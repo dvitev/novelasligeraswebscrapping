@@ -13,6 +13,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copia los archivos del proyecto
 COPY . /app/
 
+# Make sure the static and media folders exist
+RUN mkdir -p /app/static/images
+RUN mkdir -p /app/static/pdf
+
+# Set correct permissions
+RUN chmod -R 755 /app/static
+
+RUN python manage.py collectstatic
 
 # Expone el puerto 8000
 EXPOSE 8000

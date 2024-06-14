@@ -107,7 +107,7 @@ def generar_pdf(request, novela_id):
         pdf.chapter_title(x['nombre'])
         nombre_imagen = os.path.basename(x['imagen_url'])
         ruta_imagen = descargar_imagen(x['imagen_url'], nombre_imagen)
-        # print(ruta_imagen)
+        print(ruta_imagen)
         pdf.image(name=ruta_imagen, x=pdf.epw / 3, w=75)
         pdf.write_html(text="<h5>Resumen:</h5>")
         pdf.write_html(text=''.join([f"<p>{traducir(sinop)}</p><br>" for sinop in x['sinopsis'].split('\r\n')]))
