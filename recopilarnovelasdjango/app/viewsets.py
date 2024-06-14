@@ -10,11 +10,15 @@ class SitioViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SitioSerializer
 
     def get_queryset(self):
-        return Sitio.objects.all()
+        pk = self.kwargs.get('pk')
+        # Obtener todos los géneros de la base de datos
+        if pk:
+            return Sitio.objects.filter(_id=ObjectId(pk))
+        return Sitio.objects.none()
 
     def retrieve(self, request, *args, **kwargs):
-        obj = get_object_or_404(Sitio, _id=ObjectId(kwargs['pk']))
-        serializer = self.serializer_class(obj)
+        queryset = self.get_queryset()
+        serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
 
@@ -23,11 +27,15 @@ class EstructuraSitioViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = EstructuraSitioSerializer
 
     def get_queryset(self):
-        return EstructuraSitio.objects.all()
+        pk = self.kwargs.get('pk')
+        # Obtener todos los géneros de la base de datos
+        if pk:
+            return EstructuraSitio.objects.filter(_id=ObjectId(pk))
+        return EstructuraSitio.objects.none()
 
     def retrieve(self, request, *args, **kwargs):
-        obj = get_object_or_404(EstructuraSitio, _id=ObjectId(kwargs['pk']))
-        serializer = self.serializer_class(obj)
+        queryset = self.get_queryset()
+        serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
 
@@ -38,7 +46,7 @@ class NovelaViewSet(viewsets.ReadOnlyModelViewSet):
         pk = self.kwargs.get('pk')
         # Obtener todos los géneros de la base de datos
         if pk:
-            return Novela.objects.filter(sitio_id=pk)
+            return Novela.objects.filter(_id=ObjectId(pk))
         return Novela.objects.none()
 
     def retrieve(self, request, *args, **kwargs):

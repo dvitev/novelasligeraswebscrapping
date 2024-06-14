@@ -7,20 +7,22 @@ const cargador = ({ src, width, height }) => {
   return `${src}?w=${width}&h=${height}`;
 };
 
-const cargarNovela = (id) => {
-  return fetch(`http://192.168.1.11:8000/api/novelas/${id}/`, {
+// Función para cargar datos de una novela específica.
+const cargarNovela = async (id) => {
+  const res = await fetch(`http://192.168.1.11:8000/api/novelas/${id}/`, {
     cache: "no-store",
-  })
-    .then((res) => res.json())
-    .then((datos) => datos[0]);
+  });
+  const datos = await res.json();
+  return datos[0];
 };
 
-const cargarCapitulosNovela = (id) => {
-  return fetch(`http://192.168.1.11:8000/api/capitulosnovela/${id}/`, {
+// Función para cargar los capítulos de una novela específica.
+const cargarCapitulosNovela = async (id) => {
+  const res = await fetch(`http://192.168.1.11:8000/api/capitulosnovela/${id}/`, {
     cache: "no-store",
-  })
-    .then((res) => res.json())
-    .then((datos) => datos);
+  });
+  const datos = await res.json();
+  return datos;
 };
 
 // Componente de página principal.

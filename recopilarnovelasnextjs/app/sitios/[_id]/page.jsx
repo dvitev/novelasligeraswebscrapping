@@ -1,23 +1,20 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import ListadoNovelas from "./ListadoNovelas";
 import ListGeneros from "./ListGeneros";
 
 const cargarSitio = async (id) => {
-  const res = await fetch(`http://192.168.1.11:8000/api/sitios/${id}/`, {
-    cache: "no-store",
-  });
+  console.log(id);
+  const res = await fetch(`http://192.168.1.11:8000/api/sitios/${id}/`, { cache: "no-store" });
   const datos = await res.json();
   return datos[0];
 };
 
 const cargarGeneros = async (id) => {
-  const res = await fetch(`http://192.168.1.11:8000/api/generos/${id}/`, {
-    cache: "no-store",
-  });
+  const res = await fetch(`http://192.168.1.11:8000/api/generos/${id}/`, { cache: "no-store" });
   const datos = await res.json();
-  return datos["generos"];
+  return datos['generos'];
 };
 
 const cargarNovelas = async (sitio_id) => {
@@ -30,15 +27,20 @@ const cargarNovelas = async (sitio_id) => {
 
 export default async function page({ params }) {
   const { _id } = params;
-  // console.log(_id)
   const [datos, setDatos] = useState({});
   const [generos, setGeneros] = useState([]);
   const [novelas, setNovelas] = useState([]);
-  const [novelasFiltradas, setNovelasFiltradas] = useState([]);
+  // console.log(_id)
+  // const datos = await cargarSitio(_id);
+  console.log(datos);
+  // const generos = await cargarGeneros(_id);
+  // console.log(generos);
+  // const novelas = await cargarNovelas(_id)
+  // console.log(novelas);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
+  useEffect(()=>{
+    const fecthData = async()=>{
+      try{
         const sitioDatos = await cargarSitio(_id);
         const sitioGeneros = await cargarGeneros(_id);
         const sitioNovelas = await cargarNovelas(_id);
@@ -46,28 +48,19 @@ export default async function page({ params }) {
         setDatos(sitioDatos);
         setGeneros(sitioGeneros);
         setNovelas(sitioNovelas);
-        setNovelasFiltradas(sitioNovelas); // Inicialmente, mostrar todas las novelas
-      } catch (error) {
+      } catch (error){
         console.error("Error al cargar los datos:", error);
       }
     };
-
-    fetchData();
-  }, [_id]);
-
-  const handleFiltrarNovelas = (genero) => {
-    const filtradas = genero
-      ? novelas.filter((novela) => novela.genero.includes(genero))
-      : novelas;
-    setNovelasFiltradas(filtradas);
-  };
+    fecthData();
+  }, [_id])
 
   return (
     <>
       <h1>
         {datos.nombre} - {datos.url} - {datos.idioma}
       </h1>
-      <ListGeneros datos={generos} onFiltrar={handleFiltrarNovelas} />
+      <ListGeneros datos={generos}/>
       <div className="novel">
         <ListadoNovelas novelas={novelas} />
       </div>
