@@ -14,7 +14,7 @@ class SitioViewSet(viewsets.ReadOnlyModelViewSet):
         # Obtener todos los géneros de la base de datos
         if pk:
             return Sitio.objects.filter(_id=ObjectId(pk))
-        return Sitio.objects.none()
+        return Sitio.objects.all()
 
     def retrieve(self, request, *args, **kwargs):
         queryset = self.get_queryset()

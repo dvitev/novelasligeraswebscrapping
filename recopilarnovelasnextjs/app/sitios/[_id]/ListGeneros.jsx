@@ -10,12 +10,12 @@ const fuente = Montserrat({
 
 export default function ListGeneros({ datos, onFiltrar }) {
   const [selectedGenero, setSelectedGenero] = useState('');
-
+  
   const filtrar = () => {
     if (!selectedGenero) {
       alert('Debe seleccionar un género primero');
     } else {
-      onFiltrar(selectedGenero); // Llamar a la función onFiltrar con el género seleccionado
+      alert(`Buscando ${selectedGenero}`);
     }
   };
 
