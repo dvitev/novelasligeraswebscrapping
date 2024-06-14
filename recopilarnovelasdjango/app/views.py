@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import HttpResponse,FileResponse
+from django.http import HttpResponse, FileResponse
 from fpdf import FPDF
 from .models import Novela, Capitulo, ContenidoCapitulo
 from django.conf import settings
@@ -10,6 +10,7 @@ from ebooklib import epub
 import uuid
 import os
 import time
+import requests
 
 
 class PDF(FPDF):
@@ -24,7 +25,8 @@ class PDF(FPDF):
     def chapter_title(self, label):
         self.set_font('Poppins-Regular', size=12)
         self.set_fill_color(200, 220, 255)
-        self.cell(0, 6, f"{label}", new_x="LMARGIN", new_y="NEXT", align="L", fill=True)
+        self.cell(0, 6, f"{label}", new_x="LMARGIN",
+                  new_y="NEXT", align="L", fill=True)
         self.ln(4)
 
     def chapter_body(self, texto):
@@ -42,6 +44,7 @@ class PDF(FPDF):
         # self.start_section(title)
         self.chapter_title(title)
         self.chapter_body(texto)
+
 
 def traducir(texto):
     contenido_p = ''
@@ -63,32 +66,51 @@ def traducir(texto):
             pass
     return contenido_p
 
+
 def descargar_imagen(imagen_url, nombre_archivo):
-    ruta_archivo = os.path.join(settings.STATICFILES_DIRS[0], 'images')
-    if not os.path.exists(os.path.join(ruta_archivo,nombre_archivo.lower())):
-        google_crawler = GoogleImageCrawler(storage={'root_dir': ruta_archivo})
-        google_crawler.crawl(keyword=nombre_archivo, max_num=1)
-        print(imagen_url)
-        time.sleep(5)
-        dirimgs = os.listdir(ruta_archivo)
-        imgenportada = ''.join(
-            [x for x in dirimgs if '000001' in x]).split('.')
-        # if imgenportada[0] != '':
-        try:
-            os.rename(os.path.join(ruta_archivo, '.'.join(imgenportada)), os.path.join(ruta_archivo, nombre_archivo.lower()))
-        except:
-            pass
-    
-    return os.path.join(ruta_archivo, nombre_archivo.lower())
-    
+    # ruta_archivo = os.path.join(settings.STATICFILES_DIRS[0], 'images')
+    # if not os.path.exists(os.path.join(ruta_archivo,nombre_archivo)):
+    #     google_crawler = GoogleImageCrawler(storage={'root_dir': ruta_archivo})
+    #     google_crawler.crawl(keyword=nombre_archivo, max_num=1)
+    #     print(imagen_url)
+    #     time.sleep(5)
+    #     dirimgs = os.listdir(ruta_archivo)
+    #     imgenportada = ''.join(
+    #         [x for x in dirimgs if '000001' in x]).split('.')
+    #     # if imgenportada[0] != '':
+    #     try:
+    #         os.rename(os.path.join(ruta_archivo, '.'.join(imgenportada)), os.path.join(ruta_archivo, nombre_archivo))
+    #     except:
+    #         pass
+
+    # return os.path.join(ruta_archivo, nombre_archivo.lower())
+    image_path = os.path.join(
+        settings.STATICFILES_DIRS[0], 'images', nombre_archivo)
+    if not os.path.exists(image_path):
+        response = requests.get(imagen_url)
+        if response.status_code == 200:
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            with open(image_path, 'wb') as f:
+                f.write(response.content)
+            print(f"Imagen descargada y guardada en: {image_path}")
+        else:
+            print(f"No se pudo descargar la imagen: {imagen_url}")
+            return None
+    else:
+        print(f"Imagen ya existe en: {image_path}")
+    return image_path
+
 
 def generar_pdf(request, novela_id):
     print(novela_id)
-    novela = Novela.objects.values('_id','nombre','autor', 'imagen_url', 'sinopsis', 'url').filter(_id=ObjectId(novela_id))
+    novela = Novela.objects.values(
+        '_id', 'nombre', 'autor', 'imagen_url', 'sinopsis', 'url').filter(_id=ObjectId(novela_id))
     # print(novela)
-    capitulos = Capitulo.objects.values('_id','nombre').filter(novela_id=novela_id)
+    capitulos = Capitulo.objects.values(
+        '_id', 'nombre').filter(novela_id=novela_id)
     # print(capitulos)
-    contenido_capitulos = {str(cont_cap['capitulo_id']):cont_cap['texto'] for cont_cap in ContenidoCapitulo.objects.values('capitulo_id','texto').filter(novela_id=novela_id)}
+    contenido_capitulos = {str(cont_cap['capitulo_id']): cont_cap['texto'] for cont_cap in ContenidoCapitulo.objects.values(
+        'capitulo_id', 'texto').filter(novela_id=novela_id)}
     # print(contenido_capitulos)
 
     response = HttpResponse(content_type='application/pdf')
@@ -97,7 +119,8 @@ def generar_pdf(request, novela_id):
         response['Content-Disposition'] = f'attachment; filename="{nom}.pdf"'
 
         pdf = PDF(orientation='P', unit='mm', format='A4')
-        pdf.add_font('Poppins-Regular', '', os.path.join(settings.STATIC_ROOT, 'fonts', 'Poppins-Regular.ttf'), uni=True)
+        pdf.add_font('Poppins-Regular', '', os.path.join(settings.STATIC_ROOT,
+                     'fonts', 'Poppins-Regular.ttf'), uni=True)
         pdf.set_font('Poppins-Regular', size=12)
         pdf.set_title(x['nombre'])
         pdf.set_author(x['autor'])
@@ -117,8 +140,8 @@ def generar_pdf(request, novela_id):
             print(f"{cap['nombre']}")
             # print(contenido_capitulos[cap_id])
             pdf.print_chapter(f"{traducir(cap['nombre'])}", f"{str(contenido_capitulos[cap_id])}")
-        
-        filename = x['nombre'].lower().replace(' ','-')+'.pdf' 
+
+        filename = ''.join([a.lower() for a in x['nombre'] if a.isalpha() or a == ' '])+'.pdf'
         file_path = f"{os.path.join(settings.STATICFILES_DIRS[0],'pdf', filename)}"
         pdf.output(file_path)
         # pdf.output(name=response)
