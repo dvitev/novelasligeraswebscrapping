@@ -1,27 +1,15 @@
-from bs4 import BeautifulSoup as bs
 import translators as ts
 from icrawler.builtin import GoogleImageCrawler
 from ebooklib import epub
 import uuid
-import sys
-import asyncio
-import re
-from fpdf import FPDF,
+import os
+import time
+from fpdf import FPDF
 
 
 class PDF(FPDF):
     # HTML2FPDF_CLASS = CustomHTML2FPDF
     def header(self):
-        # Rendering logo:
-        # self.image("../docs/fpdf2-logo.png", 10, 8, 33)
-        # Setting font: helvetica bold 15
-        # self.set_font("helvetica", "B", 15)
-        # # Moving cursor to the right:
-        # self.cell(80)
-        # # Printing title:
-        # self.cell(30, 10, "Title", border=1, align="C")
-        # # Performing a line break:
-        # self.ln(20)
         pass
 
     def footer(self):
@@ -113,20 +101,13 @@ async def btn_guardar_pdf_click(e):
     pdf.write_html(text="<h5>Resumen:</h5>")
     pdf.write_html(text=''.join(
         [f"<p>{x}.</p>" for x in resumen.split('.')]))
-    pdf.write(text=f"Url de Novela: {txt_name.value}")
+    pdf.write(text=f"Url de Novela: txt_name.value")
 
     for index, chapter in df_contentchapters.iterrows():
-        pdf.print_chapter(f"{chapter['nombre']}",
-                          f"{chapter['contenido']}")
-        capitulo.value = f"Añadido {chapter['nombre']} al PDF"
+        pdf.print_chapter(f"{chapter['nombre']}", f"{chapter['contenido']}")
         print(f"Añadido {chapter['nombre']} al PDF")
-        await page.update_async()
-    linea.value = f"archivo pdf de {tituloarchivo} creado"
     pdf.output(f"{os.path.join(path,'pdf',tituloarchivo)}.pdf")
     print('archivo pdf de ', tituloarchivo, ' creado')
-    capitulo.value = ''
-    linea.value = ''
-    await page.update_async()
 
 
 async def btn_guardar_epub_click(e):

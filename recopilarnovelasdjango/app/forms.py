@@ -3,7 +3,7 @@ from .models import *
 
 
 class EstructuraSitioForm(forms.ModelForm):
-    sitio_id = forms.ChoiceField(choices=choise_sitio)
+    sitio_id = forms.ChoiceField(choices=choice_sitio)
 
     class Meta:
         model = EstructuraSitio
@@ -12,7 +12,7 @@ class EstructuraSitioForm(forms.ModelForm):
 
 
 class NovelaForm(forms.ModelForm):
-    sitio_id = forms.ChoiceField(choices=choise_sitio)
+    sitio_id = forms.ChoiceField(choices=choice_sitio)
 
     class Meta:
         model = Novela
@@ -21,7 +21,7 @@ class NovelaForm(forms.ModelForm):
 
 
 class CapituloForm(forms.ModelForm):
-    novela_id = forms.ChoiceField(choices=choise_novela)
+    novela_id = forms.ChoiceField(choices=choice_novela)
 
     class Meta:
         model = Capitulo
@@ -29,8 +29,8 @@ class CapituloForm(forms.ModelForm):
 
 
 class ContenidoCapituloForm(forms.ModelForm):
-    novela_id = forms.ChoiceField(choices=choise_novela)
-    Capitulo_id = forms.ChoiceField(choices=choise_capitulo)
+    novela_id = forms.ChoiceField(choices=choice_novela)
+    Capitulo_id = forms.ChoiceField(choices=choice_capitulo)
 
     class Meta:
         model = ContenidoCapitulo

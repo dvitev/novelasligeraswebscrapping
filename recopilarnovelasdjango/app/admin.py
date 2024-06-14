@@ -14,6 +14,7 @@ class SitioAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     search_field = [x.name for x in Sitio._meta.fields]
     list_filter = ['idioma']
     resource_class = MyResorcesAdmin
+    readonly_fields = ['created_at', 'updated_at']
 
 class EstructuraSitioAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in EstructuraSitio._meta.fields]
@@ -21,6 +22,7 @@ class EstructuraSitioAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_filter = ['sitio_id','tipo_selector']
     form = EstructuraSitioForm
     resource_class = MyResorcesAdmin
+    readonly_fields = ['created_at', 'updated_at']
 
 class NovelaAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in Novela._meta.fields]
@@ -28,6 +30,7 @@ class NovelaAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_filter = ['sitio_id','status']
     form = NovelaForm
     resource_class = MyResorcesAdmin
+    readonly_fields = ['created_at', 'updated_at']
 
 class CapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in Capitulo._meta.fields]
@@ -35,6 +38,7 @@ class CapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_filter = ['novela_id']
     form = CapituloForm
     resource_class = MyResorcesAdmin
+    readonly_fields = ['created_at', 'updated_at']
 
 class ContenidoCapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = [x.name for x in ContenidoCapitulo._meta.fields]
@@ -42,6 +46,7 @@ class ContenidoCapituloAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_filter = ['capitulo_id']
     form = ContenidoCapituloForm
     resource_class = MyResorcesAdmin
+    readonly_fields = ['created_at', 'updated_at']
 
 
 # Register your models here.

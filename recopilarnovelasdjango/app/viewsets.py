@@ -1,145 +1,128 @@
-from rest_framework import viewsets, generics
+from rest_framework import viewsets
 from rest_framework.response import Response
+from rest_framework.generics import get_object_or_404
 from bson.objectid import ObjectId
 from .serializers import *
 from .models import *
 
 
-class SitioViewSet(viewsets.ModelViewSet):
-    # queryset = Sitio.objects.all()
+class SitioViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SitioSerializer
 
     def get_queryset(self):
         return Sitio.objects.all()
 
     def retrieve(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        if 'pk' in kwargs:
-            queryset = [Sitio.objects.get(_id=ObjectId(kwargs['pk']))]
-        serializer = self.serializer_class(queryset, many=True).data
-        
-        return Response(serializer)
+        obj = get_object_or_404(Sitio, _id=ObjectId(kwargs['pk']))
+        serializer = self.serializer_class(obj)
+        return Response(serializer.data)
 
 
 
-class EstructuraSitioViewSet(viewsets.ModelViewSet):
-    # queryset = EstructuraSitio.objects.all()
+class EstructuraSitioViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = EstructuraSitioSerializer
 
     def get_queryset(self):
         return EstructuraSitio.objects.all()
 
     def retrieve(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        if 'pk' in kwargs:
-            queryset = [EstructuraSitio.objects.get(_id=ObjectId(kwargs['pk']))]
-        serializer = self.serializer_class(queryset, many=True).data
-        return Response(serializer)
+        obj = get_object_or_404(EstructuraSitio, _id=ObjectId(kwargs['pk']))
+        serializer = self.serializer_class(obj)
+        return Response(serializer.data)
 
 
-class NovelaViewSet(viewsets.ModelViewSet):
-    # queryset = Novela.objects.all()
+class NovelaViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NovelaSerializer
     
     def get_queryset(self):
         return Novela.objects.all()
 
     def retrieve(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        if 'pk' in kwargs:
-            queryset = [Novela.objects.get(_id=ObjectId(kwargs['pk']))]
-        serializer = self.serializer_class(queryset, many=True).data
-        return Response(serializer)
+        obj = get_object_or_404(Novela, _id=ObjectId(kwargs['pk']))
+        serializer = self.serializer_class(obj)
+        return Response(serializer.data)
 
 
 
 class NovelaSitioViewSet(viewsets.ReadOnlyModelViewSet):
-    # queryset = Novela.objects.all()
     serializer_class = NovelaSerializer
 
     def get_queryset(self):
-        if 'pk' in self.kwargs:
+        pk = self.kwargs.get('pk')
+        if pk:
             queryset_list = []
-            queryset = Novela.objects.filter(sitio_id=str(self.kwargs['pk']))
+            queryset = Novela.objects.filter(sitio_id=pk)
             for novela in queryset:
-                if 'Yaoi' not in novela.genero and 'Lgbt+' not in novela.genero and 'Yuri' not in novela.genero:
+                if 'Yaoi' not in novela.genero and 'Lgbt+' not in novela.genero and 'Yuri' not in novela.genero and 'Shounen ai' not in novela.genero and 'Shoujo ai' not in novela.genero:
                     queryset_list.append(novela)
             return queryset_list
-        else:
-            return []
+        return Novela.objects.none()
 
     def retrieve(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        serializer = self.serializer_class(queryset, many=True).data
-        return Response(serializer)
+        serializer = self.serializer_class(queryset, many=True)
+        return Response(serializer.data)
 
 
-class CapituloViewSet(viewsets.ModelViewSet):
-    # queryset = Capitulo.objects.all()
+class CapituloViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CapituloSerializer
 
     def get_queryset(self):
-        return Capitulo.objects.all()
+        pk = self.kwargs.get('pk')
+        if pk:
+            return Capitulo.objects.filter(_id=pk)
+        return Capitulo.objects.none()
 
     def retrieve(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        if 'pk' in kwargs:
-            queryset = [Capitulo.objects.get(_id=ObjectId(kwargs['pk']))]
-        serializer = self.serializer_class(queryset, many=True).data
-        return Response(serializer)
+        serializer = self.serializer_class(queryset, many=True)
+        return Response(serializer.data)
 
 
 class CapituloNovelaViewSet(viewsets.ReadOnlyModelViewSet):
-    # queryset = Novela.objects.all()
-    serializer_class = NovelaSerializer
+    serializer_class = CapituloSerializer
 
     def get_queryset(self):
-        if 'pk' in self.kwargs:
-            queryset = Capitulo.objects.filter(novela_id=str(self.kwargs['pk']))
-            return queryset
-        else:
-            return []
+        pk = self.kwargs.get('pk')
+        if pk:
+            return Capitulo.objects.filter(novela_id=pk)
+        return Capitulo.objects.none()
 
     def retrieve(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        serializer = self.serializer_class(queryset, many=True).data
-        return Response(serializer)
+        serializer = self.serializer_class(queryset, many=True)
+        return Response(serializer.data)
 
 
-class ContenidoCapituloViewSet(viewsets.ModelViewSet):
-    # queryset = ContenidoCapitulo.objects.all()
+class ContenidoCapituloViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ContenidoCapituloSerializer
 
     def get_queryset(self):
-        return ContenidoCapitulo.objects.all()
+        pk = self.kwargs.get('pk')
+        if pk:
+            return ContenidoCapitulo.objects.filter(capitulo_id=pk)
+        return ContenidoCapitulo.objects.none()
 
     def retrieve(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        if 'pk' in kwargs:
-            queryset = [ContenidoCapitulo.objects.get(_id=ObjectId(kwargs['pk']))]
-        serializer = self.serializer_class(queryset, many=True).data
-        return Response(serializer)
+        serializer = self.serializer_class(queryset, many=True)
+        return Response(serializer.data)
 
 
 class GeneroViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = GeneroSerializer
 
     def get_queryset(self):
+        pk = self.kwargs.get('pk')
         # Obtener todos los géneros de la base de datos
-        generos = Novela.objects.values_list('genero', flat=True)
+        if pk:
+            return Novela.objects.filter(sitio_id=pk)
+        return Novela.objects.none()
 
-        # Separar los géneros por comas y unirlos en una sola lista
-        generos_list = []
-        for genero in generos:
-            generos_list.extend(genero.split(','))
-
-        # Eliminar duplicados y convertir a una lista de strings únicos
-        generos_list = list(set(genero.strip() for genero in generos_list if genero.strip() not in ['Yaoi', 'Lgbt+', 'Yuri']))
-
-        return sorted(generos_list)
-
-    def list(self, request, *args, **kwargs):
+    def retrieve(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        serializer = self.serializer_class(data={'generos': queryset})
+        generos_list = set(genero.strip() for novela in queryset for genero in novela.genero.split(',') if genero.strip() not in ['Yaoi', 'Lgbt+', 'Yuri', 'Shounen ai', 'Shoujo ai'])
+        generos_list = sorted(generos_list)
+        serializer = self.serializer_class(data={'generos': generos_list})
         serializer.is_valid()
         return Response(serializer.data)

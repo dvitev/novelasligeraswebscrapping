@@ -8,16 +8,11 @@ const fuente = Montserrat({
 });
 
 export default function Nav({ datos }) {
+  // console.log(datos)
   return (
     <nav className={fuente.className}>
-      <Link href="/">
-        Home
-      </Link>
-      {/* <Link href="/personas">
-        Personas
-      </Link> */}
       {datos.map((novel, idx) => (
-        <Link key={idx} href={`/sitios/${novel._id.toString()}`}>{novel.nombre}</Link>
+        novel._id==='10101010101010101' ? <Link key={idx} href={`${novel.url}`}>{novel.nombre}</Link> : <Link key={idx} href={`/sitios/${novel._id.toString()}`}>{novel.nombre}</Link>
       ))}
     </nav>
   );

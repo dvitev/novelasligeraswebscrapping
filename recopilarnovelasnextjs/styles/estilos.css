@@ -1,3 +1,9 @@
+/* General styles */
+body {
+  font-family: var(--mifont);
+}
+
+/* Navigation styles */
 nav {
   display: flex;
 }
@@ -10,82 +16,196 @@ nav a {
   border-radius: 6px;
   background-color: #0f0f0f;
   color: white;
+  transition: background-color 0.3s, color 0.3s;
 }
+
 nav a:hover {
   background-color: white;
   color: #0f0f0f;
 }
-.caja{
-    width: 50%;
-    border: 1px solid black;
-    margin: auto;
+
+/* Generos styles */
+.generos {
+  padding: 5px;
+  width: 100%;
 }
+
+label .browsergenero {
+  font-size: 1.2rem;
+  width: 25%;
+}
+
+input .browsergenero {
+  font-size: 1.4rem;
+  width: 75%;
+}
+
+input .buttongenero {
+  font-size: 1.4rem;
+  background-color: #0f0f0f;
+  color: antiquewhite;
+}
+
+/* Caja styles */
+.caja {
+  width: 50%;
+  border: 1px solid black;
+  margin: auto;
+}
+
 img {
   vertical-align: top;
 }
-.personas{
+
+/* Personas styles */
+.personas {
   display: flex;
   flex-wrap: wrap;
 }
-nav{
-  font-family: var(--mifont);
-}
+
+/* Iframe styles */
 .iframeContainer iframe {
-  border: none; /* Hide default border */
-  padding: 0; /* Align with surrounding content */
+  border: none;
+  padding: 0;
 }
-.novel{
+
+/* Novel styles */
+.novel {
   display: flex;
   flex-direction: row;
   justify-content: center;
   align-items: center;
   padding: 2px;
 }
-.novelPanel{
+
+.novelPanel {
   width: 75%;
 }
-.novelOptions{
-  width: 25%;
+
+/* Novel options styles */
+.novelOptions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
   gap: 10px;
   justify-content: center;
   align-items: center;
-  
+  padding: 20px;
 }
-.novelOptions a{
-  width: 50%;
+
+.novelOptions .NovelDiv {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 30px;
+  padding: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  transition: transform 0.3s, box-shadow 0.3s;
   height: 100%;
-  margin: 0 auto;
-  padding-left: 5px;
-  padding-right: 5px;
-  font-size: 1.1rem;
-  text-decoration: none;
 }
-.listadoCapitulos{
+
+.novelOptions .NovelDiv:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.novelOptions .NovelDiv a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
+  margin: 0 auto;
+  font-size: 1.1rem;
+  transition: color 0.3s;
+  flex: 1;
+  overflow: hidden;
+}
+
+.novelOptions .NovelDiv a img {
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+
+.novelOptions .NovelDiv a p {
+  width: 100%;
+  margin: 5px 0;
+  text-align: center;
+  font-size: 1rem;
+  word-wrap: break-word;
+  overflow: hidden;
+  line-height: 1.2rem;
+}
+
+.novelOptions .NovelDiv a:hover {
+  color: #0073e6;
+}
+
+.novelOptions .NovelDiv button {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.novelOptions .NovelDiv .EpubNovel {
+  background-color: green;
+}
+
+.novelOptions .NovelDiv .EpubNovel:hover {
+  background-color: darkgreen;
+}
+
+.novelOptions .NovelDiv .PDFNovel {
+  background-color: red;
+}
+
+.novelOptions .NovelDiv .PDFNovel:hover {
+  background-color: darkred;
+}
+
+/* ListadoCapitulos styles */
+.listadoCapitulos {
   height: 500px;
   width: 30%;
   overflow-y: auto;
 }
-.listadoCapitulos .capitulo{
+
+.listadoCapitulos .capitulo {
   margin: 4px auto;
   border-radius: 5px;
-  border: black 1px solid;
+  border: 1px solid black;
 }
-.listadoCapitulos .capitulo:hover{
+
+.listadoCapitulos .capitulo:hover {
   background-color: #3247b1;
 }
-.listadoCapitulos .capituloactivo{
+
+.listadoCapitulos .capituloactivo {
   background-color: #3247b1;
   color: white;
   font-size: 1.2rem;
   font-family: monospace;
 }
-.opcionesCapituloNovela{
+
+/* OpcionesCapituloNovela styles */
+.opcionesCapituloNovela {
   display: flex;
   flex-direction: row;
 }
-.opcionesCapituloNovela div{
+
+.opcionesCapituloNovela div {
   display: flex;
   background-color: #3247b1;
   width: calc(50% - 1.5em);
@@ -96,10 +216,106 @@ nav{
   justify-content: center;
   height: 40px;
   color: whitesmoke;
+  transition: background-color 0.3s, color 0.3s, height 0.3s;
 }
-.opcionesCapituloNovela div:hover{
+
+.opcionesCapituloNovela div:hover {
   background-color: red;
   color: #0f0f0f;
   font-size: 1.5rem;
   height: 50px;
+}
+
+/* ListadoNovelaPortada styles */
+.ListadoNovelaPortada {
+  border-radius: 25px;
+}
+
+/* Contenedordatosnovela styles */
+.contenedordatosnovela {
+  width: 100%;
+  display: flex;
+}
+
+/* Contenedorportada styles */
+.contenedorportada {
+  display: block;
+  width: 22%;
+  padding-right: 2px;
+}
+
+.contenedorportada img{
+  width: 100%;
+}
+
+/* Contenedorsinopsis styles */
+.contenedorsinopsis {
+  display: block;
+  width: 100%;
+  border: 1px solid black;
+  border-radius: 15px;
+}
+
+/* Sinopsisdato styles */
+.sinopsisdato {
+  display: flex;
+  width: 100%;
+  margin: 1px;
+  padding: 1px;
+  align-items: center;
+}
+
+.sinopsisdato * {
+  height: auto;
+  margin: 1px;
+}
+
+.sinopsisdato h4 {
+  width: 25%;
+  border-bottom: 1px solid black;
+  border-right: 1px solid black;
+  height: 100%;
+  margin: 0;
+  text-align: center;
+  border-bottom-left-radius: 15px;
+}
+
+.sinopsisdato p {
+  width: 75%;
+  border-bottom: 1px solid black;
+  border-left: 1px solid black;
+  margin: 0 auto;
+  padding: 0 2px;
+}
+
+.sinopsisdato a {
+  width: 75%;
+}
+
+/* Sinopsisgenerodato styles */
+.sinopsisdato .sinopsisgenerodato {
+  display: grid;
+  /* grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  grid-auto-rows: 1fr; */
+  grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+  /* grid-template-columns: repeat(6, 1fr); */
+  /* grid-template-rows: repeat(2, 1fr); */
+  gap: 5px;
+  width: 75%;
+}
+
+.sinopsisdato .sinopsisgenerodato label {
+  background-color: cadetblue;
+  border-radius: 5px;
+  align-items: center;
+  align-content: center;
+  padding: 0 2px;
+  margin: 0 2px;
+  text-align: center;
+  height: 40px;
+  font-size: 1rem;
+  word-wrap: break-word;
+  overflow: hidden;
+  line-height: 1.2rem;
 }

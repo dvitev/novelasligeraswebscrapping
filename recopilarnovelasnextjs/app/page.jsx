@@ -2,7 +2,6 @@
 import Image from "next/image";
 import imagen2 from "../public/imagenes/martial-peak-ombyb1.png";
 
-
 export default function page() {
   return (
     <>
@@ -16,9 +15,8 @@ export default function page() {
         />
       </div>
       <div className="caja">
-        <Image src={imagen2} layout="responsive"/>
+        <Image src={imagen2} layout="responsive" />
       </div>
-
     </>
   );
 }

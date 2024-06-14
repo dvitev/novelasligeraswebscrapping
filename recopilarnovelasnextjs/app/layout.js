@@ -1,4 +1,5 @@
 import Nav from "@/components/Nav";
+import Footer from "@/components/Footer";
 import "../styles/estilos.css";
 import { Montserrat } from "@next/font/google";
 
@@ -14,17 +15,20 @@ const cargarPaginas = () => {
 };
 
 export const metadata = {
-  title: "Next.js",
+  title: "Novelas",
   description: "Generado por David Vite Vergara",
 };
 
 export default async function RootLayout({ children }) {
   const datos = await cargarPaginas();
+  datos.unshift({"_id":"10101010101010101", "nombre":"Home", "url":"/", "idioma":"es", "created_at": "2020-03-13T13:49:14.946000Z", "updated_at": "2020-03-13T13:49:15.265000Z"})
+  // console.log(datos)
   return (
     <html lang="es">
       <body>
         <Nav datos={datos}/>
         <div className={fuente.className}>{children}</div>
+        <Footer/>
       </body>
     </html>
   );
