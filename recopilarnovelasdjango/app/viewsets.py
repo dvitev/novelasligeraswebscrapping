@@ -5,7 +5,9 @@ from rest_framework.generics import get_object_or_404
 from bson.objectid import ObjectId
 from .serializers import *
 from .models import *
+import logging
 
+logger = logging.getLogger('app')
 
 class SitioViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SitioSerializer

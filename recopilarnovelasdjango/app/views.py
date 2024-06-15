@@ -11,7 +11,10 @@ import uuid
 import os
 import time
 import requests
+import logging
 
+# Obtén una referencia al logger
+logger = logging.getLogger('app')
 
 class PDF(FPDF):
     def header(self):
@@ -68,22 +71,6 @@ def traducir(texto):
 
 
 def descargar_imagen(imagen_url, nombre_archivo):
-    # ruta_archivo = os.path.join(settings.STATICFILES_DIRS[0], 'images')
-    # if not os.path.exists(os.path.join(ruta_archivo,nombre_archivo)):
-    #     google_crawler = GoogleImageCrawler(storage={'root_dir': ruta_archivo})
-    #     google_crawler.crawl(keyword=nombre_archivo, max_num=1)
-    #     print(imagen_url)
-    #     time.sleep(5)
-    #     dirimgs = os.listdir(ruta_archivo)
-    #     imgenportada = ''.join(
-    #         [x for x in dirimgs if '000001' in x]).split('.')
-    #     # if imgenportada[0] != '':
-    #     try:
-    #         os.rename(os.path.join(ruta_archivo, '.'.join(imgenportada)), os.path.join(ruta_archivo, nombre_archivo))
-    #     except:
-    #         pass
-
-    # return os.path.join(ruta_archivo, nombre_archivo.lower())
     image_path = os.path.join(
         settings.STATICFILES_DIRS[0], 'images', nombre_archivo)
     if not os.path.exists(image_path):
@@ -92,26 +79,26 @@ def descargar_imagen(imagen_url, nombre_archivo):
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
             with open(image_path, 'wb') as f:
                 f.write(response.content)
-            print(f"Imagen descargada y guardada en: {image_path}")
+            logger.debug(f"Imagen descargada y guardada en: {image_path}")
         else:
-            print(f"No se pudo descargar la imagen: {imagen_url}")
+            logger.debug(f"No se pudo descargar la imagen: {imagen_url}")
             return None
     else:
-        print(f"Imagen ya existe en: {image_path}")
+        logger.debug(f"Imagen ya existe en: {image_path}")
     return image_path
 
 
 def generar_pdf(request, novela_id):
-    print(novela_id)
+    logger.debug(novela_id)
     novela = Novela.objects.values(
         '_id', 'nombre', 'autor', 'imagen_url', 'sinopsis', 'url').filter(_id=ObjectId(novela_id))
-    # print(novela)
+    # logger.debug(novela)
     capitulos = Capitulo.objects.values(
         '_id', 'nombre').filter(novela_id=novela_id)
-    # print(capitulos)
+    # logger.debug(capitulos)
     contenido_capitulos = {str(cont_cap['capitulo_id']): cont_cap['texto'] for cont_cap in ContenidoCapitulo.objects.values(
         'capitulo_id', 'texto').filter(novela_id=novela_id)}
-    # print(contenido_capitulos)
+    # logger.debug(contenido_capitulos)
 
     response = HttpResponse(content_type='application/pdf')
     for x in novela:
@@ -130,15 +117,15 @@ def generar_pdf(request, novela_id):
         pdf.chapter_title(x['nombre'])
         nombre_imagen = os.path.basename(x['imagen_url'])
         ruta_imagen = descargar_imagen(x['imagen_url'], nombre_imagen)
-        print(ruta_imagen)
+        logger.debug(ruta_imagen)
         pdf.image(name=ruta_imagen, x=pdf.epw / 3, w=75)
         pdf.write_html(text="<h5>Resumen:</h5>")
         pdf.write_html(text=''.join([f"<p>{traducir(sinop)}</p><br>" for sinop in x['sinopsis'].split('\r\n')]))
         pdf.write(text=f"Url de Novela: {x['url']}")
         for cap in capitulos:
             cap_id = str(cap['_id'])
-            print(f"{cap['nombre']}")
-            # print(contenido_capitulos[cap_id])
+            logger.debug(f"{cap['nombre']}")
+            # logger.debug(contenido_capitulos[cap_id])
             pdf.print_chapter(f"{traducir(cap['nombre'])}", f"{str(contenido_capitulos[cap_id])}")
 
         filename = ''.join([a.lower() for a in x['nombre'] if a.isalpha() or a == ' '])+'.pdf'
@@ -151,16 +138,16 @@ def generar_pdf(request, novela_id):
 
 
 def generar_epub(request, novela_id):
-    print(novela_id)
+    logger.debug(novela_id)
     novela = Novela.objects.values(
         '_id', 'nombre', 'autor', 'imagen_url', 'sinopsis', 'url').filter(_id=ObjectId(novela_id))
-    # print(novela)
+    # logger.debug(novela)
     capitulos = Capitulo.objects.values(
         '_id', 'nombre').filter(novela_id=novela_id)
-    # print(capitulos)
+    # logger.debug(capitulos)
     contenido_capitulos = {str(cont_cap['capitulo_id']): cont_cap['texto'] for cont_cap in ContenidoCapitulo.objects.values(
         'capitulo_id', 'texto').filter(novela_id=novela_id)}
-    # print(contenido_capitulos)
+    # logger.debug(contenido_capitulos)
 
     response = HttpResponse(content_type='application/epub')
     for x in novela:
@@ -168,7 +155,7 @@ def generar_epub(request, novela_id):
         response['Content-Disposition'] = f'attachment; filename="{nom}.epub"'
         nombre_imagen = os.path.basename(x['imagen_url'])
         ruta_imagen = descargar_imagen(x['imagen_url'], nombre_imagen)
-        print(ruta_imagen)
+        # print(ruta_imagen)
         
         book = epub.EpubBook()
         # set metadata
@@ -192,13 +179,12 @@ def generar_epub(request, novela_id):
         for idx, cap in enumerate(capitulos):
             cap_id = str(cap['_id'])
             nombre_cap = traducir(cap['nombre'])
-            print(f"{cap['nombre']}")
+            logger.debug(f"{cap['nombre']}")
             cp = str(idx+1).zfill(len(str(len(capitulos))))
             c = epub.EpubHtml(title=nombre_cap, file_name=f"chap_{cp}.xhtml", lang='es')
             c.content = f"<h1>{nombre_cap}</h1><br>{contenido_capitulos[cap_id]}"
             book.add_item(c)
             cs += (c,)
-        
         
         book.toc = (
             epub.Link('intro.xhtml', 'Introduction', 'intro'),
@@ -231,7 +217,4 @@ def generar_epub(request, novela_id):
         filename = ''.join([a.lower() for a in x['nombre'] if a.isalpha() or a == ' '])+'.epub'
         file_path = f"{os.path.join(settings.STATICFILES_DIRS[0],'epub', filename)}"
         epub.write_epub(file_path, book, {})
-        # pdf.output(name=response)
-
-        # return response
         return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
