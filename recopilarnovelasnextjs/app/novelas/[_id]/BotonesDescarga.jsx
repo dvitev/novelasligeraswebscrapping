@@ -1,6 +1,6 @@
 "use client";
 
-export default function BotonesDescarga(novela_id) {
+export default function BotonesDescarga({novela_id}) {
   const obtenerEpub = (novela_id) => {
     const url = `http://192.168.1.11:8000/api/generar_epub/${novela_id}/`;
     window.open(url, "_blank");
