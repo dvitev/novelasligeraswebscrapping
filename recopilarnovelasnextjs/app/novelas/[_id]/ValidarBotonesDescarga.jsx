@@ -8,7 +8,7 @@ const conteoCapitulos =(novela_id)=>{
 export default async function ValidarBotonesDescarga({novela_id}) {
     // console.log(novela_id);
     const conteocap = await conteoCapitulos(novela_id);
-    console.log(conteocap);
+    // console.log(conteocap);
   return (
     <>{
         conteocap.cantidad_capitulos===conteocap.cantidad_contenido_capitulos ? <BotonesDescarga novela_id={novela_id}/> : null
