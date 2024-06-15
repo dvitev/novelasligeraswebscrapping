@@ -136,7 +136,7 @@ class CapituloNovelaViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
-class ContenidoCapituloViewSet(viewsets.ReadOnlyModelViewSet):
+class ContenidoCapituloViewSet(viewsets.ModelViewSet):
     serializer_class = ContenidoCapituloSerializer
 
     def get_queryset(self):
