@@ -14,10 +14,23 @@ class EstructuraSitioSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class NovelaSerializer(serializers.ModelSerializer):
+class NovelaSerializer(serializers.ModelSerializer):    
     class Meta:
         model = Novela
         fields = '__all__'
+
+
+class NovelaCapitulosConteoSerializer(serializers.Serializer):
+    _id = serializers.CharField()
+    nombre = serializers.CharField()
+    sinopsis = serializers.CharField()
+    autor = serializers.CharField()
+    genero = serializers.CharField()
+    status = serializers.CharField()
+    url= serializers.URLField()
+    imagen_url = serializers.URLField()
+    cantidad_capitulos = serializers.IntegerField()
+    cantidad_contenido_capitulos = serializers.IntegerField()
 
 
 class GeneroSerializer(serializers.Serializer):

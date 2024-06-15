@@ -148,7 +148,31 @@ img {
   color: #0073e6;
 }
 
-.novelOptions .NovelDiv button {
+
+.novelDownload {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 30px;
+  padding: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  transition: transform 0.3s, box-shadow 0.3s;
+  height: 100%;
+}
+
+.novelDownload:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+
+
+
+.novelDownload button {
   width: 100%;
   padding: 10px;
   border: none;
@@ -159,19 +183,19 @@ img {
   transition: background-color 0.3s;
 }
 
-.novelOptions .NovelDiv .EpubNovel {
+.novelDownload .EpubNovel {
   background-color: green;
 }
 
-.novelOptions .NovelDiv .EpubNovel:hover {
+.novelDownload .EpubNovel:hover {
   background-color: darkgreen;
 }
 
-.novelOptions .NovelDiv .PDFNovel {
+.novelDownload .PDFNovel {
   background-color: red;
 }
 
-.novelOptions .NovelDiv .PDFNovel:hover {
+.novelDownload .PDFNovel:hover {
   background-color: darkred;
 }
 

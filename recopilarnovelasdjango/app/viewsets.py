@@ -1,4 +1,5 @@
-from rest_framework import viewsets
+from rest_framework.pagination import PageNumberPagination
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.generics import get_object_or_404
 from bson.objectid import ObjectId
@@ -55,9 +56,12 @@ class NovelaViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
+class NovelaPagination(PageNumberPagination):
+    page_size = 100
 
 class NovelaSitioViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NovelaSerializer
+    # pagination_class = NovelaPagination
 
     def get_queryset(self):
         pk = self.kwargs.get('pk')
@@ -73,6 +77,30 @@ class NovelaSitioViewSet(viewsets.ReadOnlyModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.serializer_class(queryset, many=True)
+        return Response(serializer.data)
+
+
+class NovelaCapitulosConteoViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = NovelaCapitulosConteoSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        try:
+            novela = Novela.objects.get(_id=ObjectId(pk))
+        except Novela.DoesNotExist:
+            return Response({'error': 'Novela no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+        capitulos_novela = Capitulo.objects.filter(novela_id=novela._id).count()
+        contenido_capitulos_novela = ContenidoCapitulo.objects.filter(novela_id=novela._id).count()
+
+        data = {
+            '_id': str(novela._id),
+            'cantidad_capitulos': capitulos_novela,
+            'cantidad_contenido_capitulos': contenido_capitulos_novela
+        }
+
+        serializer = self.serializer_class(data=data)
+        serializer.is_valid()
         return Response(serializer.data)
 
 

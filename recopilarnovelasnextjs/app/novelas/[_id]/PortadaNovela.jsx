@@ -8,6 +8,6 @@ const cargador = ({ src, width, height }) => {
 
 export default function PortadaNovela({ imagen_url }) {
   return (
-    <Image loader={cargador} src={imagen_url} width={160} height={200} className="ListadoNovelaPortada"/>
+    <Image loader={cargador} src={imagen_url} width={160} height={200} className="ListadoNovelaPortada" alt={imagen_url}/>
   );
 }

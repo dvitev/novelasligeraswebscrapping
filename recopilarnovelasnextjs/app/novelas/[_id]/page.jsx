@@ -1,6 +1,7 @@
 import ListadoCapitulos from "./ListadoCapitulos";
 import PortadaNovela from "./PortadaNovela";
 import Link from "next/link";
+import ValidarBotonesDescarga from "./ValidarBotonesDescarga";
 
 // Utiliza un cargador de imágenes para optimizar las imágenes.
 const cargador = ({ src, width, height }) => {
@@ -37,6 +38,9 @@ export default async function Page({ params }) {
     <>
       <h1>{datos.nombre}</h1>
       <ListadoCapitulos capitulos={capitulos} novela_id={_id} />
+      <div className="novelDownload">
+        <ValidarBotonesDescarga novela_id = {datos._id}/>
+      </div>
       <div className="contenedordatosnovela">
         <div className="contenedorportada">
           <PortadaNovela imagen_url={datos.imagen_url} />

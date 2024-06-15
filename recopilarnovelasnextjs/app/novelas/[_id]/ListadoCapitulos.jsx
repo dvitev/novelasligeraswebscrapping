@@ -32,15 +32,6 @@ export default function ListadoCapitulos({ capitulos, novela_id }) {
           ))}
         </div>
       </div>
-      {/* {url !== "" ? (
-        <div className="opcionesCapituloNovela">
-          <CapturaIndividualBoton
-            novela_id={novela_id}
-            capitulo_id={_id}
-          />
-          <div>Captura Masiva</div>
-        </div>
-      ) : null} */}
     </>
   );
 }

@@ -24,15 +24,6 @@ export default function ListadoNovelas({ novelas }) {
     }
   }, [generoFiltrado, novelas]);
 
-  const obtenerEpub = (novela_id) => {
-    const url = `http://192.168.1.11:8000/api/generar_epub/${novela_id}/`;
-    window.open(url, '_blank');
-  };
-  const obtenerPdf = (novela_id) => {
-    const url = `http://192.168.1.11:8000/api/generar_pdf/${novela_id}/`;
-    window.open(url, '_blank');
-  };
-
   return (
     <div className="novelOptions">
       {Array.isArray(novelasFiltradas) ? (
@@ -50,24 +41,6 @@ export default function ListadoNovelas({ novelas }) {
               <p>{novela.nombre}</p>
               <input type="hidden" name={`${novela.genero}`} />
             </Link>
-            <button
-              key={`${idx}_epub`}
-              className="EpubNovel"
-              onClick={() => {
-                obtenerEpub(novela._id);
-              }}
-            >
-              Epub
-            </button>
-            <button
-              key={`${idx}_pdf`}
-              className="PDFNovel"
-              onClick={() => {
-                obtenerPdf(novela._id);
-              }}
-            >
-              PDF
-            </button>
           </div>
         ))
       ) : (
