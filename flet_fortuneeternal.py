@@ -313,7 +313,7 @@ async def main(page: ft.Page):
                 print(df_listchapters['nombre'][index-1])
                 contenido_p_en = []
                 driver.get(df_listchapters['urls'][index-1])
-                time.sleep(5)
+                # time.sleep(5)
                 soup = bs(driver.page_source, 'html.parser')
                 # driver.quit()
                 contentcapter = soup.find('div', class_='entry-content_wrap')
@@ -374,7 +374,7 @@ async def main(page: ft.Page):
             await page.update_async()
         else:
 
-            xpath_titulo = '/html/body/div[1]/div/div[3]/div/div[1]/div/div/div/div[2]/h1'
+            xpath_titulo = '/html/body/div[1]/div/div[5]/div/div[1]/div/div/div/div[1]/h1'
             try:
                 data_obtenida.controls = []
 
@@ -396,14 +396,15 @@ async def main(page: ft.Page):
                 # Realizar la solicitud HTTP a la URL
                 driver.get(txt_name.value)
 
-                time.sleep(5)
-
+                # time.sleep(5)
+                # titulo_h1 = driver.find_element(By.XPATH,xpath_titulo).text
                 html = driver.page_source
                 soup = bs(html, 'html.parser')
                 driver.quit()
                 # Obtener el título de la página
-                dom = etree.HTML(str(soup))
-                titulo_h1 = dom.xpath(xpath_titulo)[0].text
+                # dom = etree.HTML(str(soup))
+                print(soup.find('div',class_='site-content').find('div', class_='container').find('div', class_='post-title').find('h1').getText().strip().rstrip())
+                titulo_h1 = soup.find('div',class_='site-content').find('div', class_='container').find('div', class_='post-title').find('h1').getText().strip().rstrip()
                 print(titulo_h1)
 
                 titulo_datos = ' '.join(
@@ -441,11 +442,13 @@ async def main(page: ft.Page):
                 df_listchapters = pd.DataFrame(
                     chapters_list, columns=['nombre', 'urls'])
                 # print(df_listchapters)
-                for index in range(len(df_listchapters), 0, -1):
+                df_listchapters = df_listchapters.iloc[::-1]
+                # rows_listchapters = [ft.DataRow(cells=[ft.DataCell(ft.Text(x['nombre'])),ft.DataCell(ft.Text(x['urls'])),]) for x in df_listchapters.iloc[::-1]]
+                for idx, chap in df_listchapters.iterrows():
                     rows_listchapters.append(ft.DataRow(cells=[
                         ft.DataCell(
-                            ft.Text(df_listchapters['nombre'][index-1])),
-                        ft.DataCell(ft.Text(df_listchapters['urls'][index-1])),
+                            ft.Text(chap['nombre'])),
+                        ft.DataCell(ft.Text(chap['urls'])),
                     ]))
                 data_obtenida.controls.append(
                     datatable
