@@ -322,6 +322,8 @@ class FanmtlScraperAutomatico:
         self.base_url = "https://www.fanmtl.com"
         self.list_url = f"{self.base_url}/list/all/Completed-onclick-0.html"
         self.current_page = 1
+        # Lista de géneros a excluir
+        self.generos_excluidos = {'Josei', 'LGBT', 'Shoujo Ai', 'Shounen Ai', 'Yaoi', 'Yuri', 'BL', 'BG', 'GL'}
 
     def get_total_pages(self):
         """Obtiene el número total de páginas de la lista de novelas."""
@@ -395,7 +397,6 @@ class FanmtlScraperAutomatico:
             logger.error(f"Tiempo de espera agotado al cargar la lista de novelas en la página {self.current_page}.")
         except Exception as e:
             logger.error(f"Error general al raspar la página {self.current_page}: {e}")
-            
         return novel_urls
 
     def scrape_all_novels_automatic(self):
@@ -459,7 +460,8 @@ class FanmtlScraperAutomatico:
                     })
                     self.driver.get(next_page_url)
                     time.sleep(2) # Espera para cargar la nueva página
-
+                    
+        pd.DataFrame(all_novel_urls, columns=['url']).to_csv('all_novel_fanmtl_urls.csv', index=False)
         logger.info(f"Recopilación de URLs completada. Total de novelas encontradas: {len(all_novel_urls)}")
         self.page_pubsub.send_all({
             "status": f"Recopilación de URLs completada. Total de novelas encontradas: {len(all_novel_urls)}. Iniciando procesamiento detallado...",
@@ -486,76 +488,80 @@ class FanmtlScraperAutomatico:
                 try:
                     # --- Llamar a las funciones del código original ---
                     datos_detalle = obtener_datos_novela(self.driver, novel_url)
-                    datos_capitulos = procesar_capitulos(self.driver, novel_url)
-                    
-                    # --- Lógica de envío de datos a MongoDB ---
-                    novel_name = datos_detalle['titulo'].upper()
-                    
-                    if novel_name in self.existing_novels:
-                        novel_id = self.existing_novels[novel_name]
-                        urls_novelas.add(novel_url)
-                        logger.info(f"Novela '{novel_name}' ya existe en la base de datos (ID: {novel_id}).")
-                        self.page_pubsub.send_all({
-                            "status": f"Novela '{novel_name[:50]}...' ya existe. Verificando capítulos...",
-                            "color": ft.Colors.ORANGE_600,
-                            "progress": True
-                        })
-                    else:
-                        # Preparar documento para MongoDB usando la estructura del código de envío
-                        novel_document = {
-                            "sitio_id": SITIO_ID,
-                            "nombre": novel_name,
-                            "sinopsis": datos_detalle.get('descripcion', 'N/A'),
-                            "autor": datos_detalle.get('autor', 'N/A'),
-                            "genero": ', '.join(datos_detalle.get('generos', [])),
-                            "status": 'emision' if 'Ongoing' in datos_detalle.get('estado', '') else 'completo',
-                            "url": datos_detalle.get('url', novel_url),
-                            "imagen_url": datos_detalle.get('imagen_url', 'N/A'),
-                            "created_at": datetime.now(),
-                            "updated_at": datetime.now()
-                        }
+                    # La lista de géneros de tu novela
+                    generos_novela = set(datos_detalle['generos'])
+                    if self.generos_excluidos.isdisjoint(generos_novela):
+                        datos_capitulos = procesar_capitulos(self.driver, novel_url)
                         
-                        result = coleccion_app_novela.insert_one(novel_document)
-                        novel_id = str(result.inserted_id)
-                        self.existing_novels[novel_name] = novel_id
-                        logger.info(f"Nueva novela '{novel_name}' registrada en la base de datos (ID: {novel_id}).")
-                        self.page_pubsub.send_all({
-                            "status": f"Nova novela '{novel_name[:50]}...' registrada. Procesando capítulos...",
-                            "color": ft.Colors.GREEN_600,
-                            "progress": True
-                        })
-
-                    # Procesar y guardar capítulos
-                    existing_chapters_set = obtener_capitulos_existentes(novel_id)
-                    chapters_to_insert = []
-                    
-                    for idx, cap_info in enumerate(datos_capitulos):
-                        nombre_capitulo = cap_info.get('titulo', '').strip()
-                        if nombre_capitulo and nombre_capitulo not in existing_chapters_set:
-                            chapters_to_insert.append({
-                                "novela_id": novel_id,
-                                "nombre": nombre_capitulo,
-                                "url": cap_info.get('url', ''),
-                                "created_at": datetime.now() + timedelta(microseconds=idx),
-                                "updated_at": datetime.now() + timedelta(microseconds=idx)
+                        # --- Lógica de envío de datos a MongoDB ---
+                        novel_name = datos_detalle['titulo'].upper()
+                        
+                        if novel_name in self.existing_novels:
+                            novel_id = self.existing_novels[novel_name]
+                            urls_novelas.add(novel_url)
+                            logger.info(f"Novela '{novel_name}' ya existe en la base de datos (ID: {novel_id}).")
+                            self.page_pubsub.send_all({
+                                "status": f"Novela '{novel_name[:50]}...' ya existe. Verificando capítulos...",
+                                "color": ft.Colors.ORANGE_600,
+                                "progress": True
                             })
-                    
-                    if chapters_to_insert:
-                        coleccion_app_capitulo.insert_many(chapters_to_insert)
-                        logger.info(f"Insertados {len(chapters_to_insert)} nuevos capítulos para la novela ID {novel_id}.")
-                        self.page_pubsub.send_all({
-                            "status": f"Insertados {len(chapters_to_insert)} nuevos capítulos para '{novel_name[:30]}...'.",
-                            "color": ft.Colors.GREEN_600,
-                            "progress": True
-                        })
+                        else:
+                            # Preparar documento para MongoDB usando la estructura del código de envío
+                            novel_document = {
+                                "sitio_id": SITIO_ID,
+                                "nombre": novel_name,
+                                "sinopsis": datos_detalle.get('descripcion', 'N/A'),
+                                "autor": datos_detalle.get('autor', 'N/A'),
+                                "genero": ', '.join(datos_detalle.get('generos', [])),
+                                "status": 'emision' if 'Ongoing' in datos_detalle.get('estado', '') else 'completo',
+                                "url": datos_detalle.get('url', novel_url),
+                                "imagen_url": datos_detalle.get('imagen_url', 'N/A'),
+                                "created_at": datetime.now(),
+                                "updated_at": datetime.now()
+                            }
+                            
+                            result = coleccion_app_novela.insert_one(novel_document)
+                            novel_id = str(result.inserted_id)
+                            self.existing_novels[novel_name] = novel_id
+                            logger.info(f"Nueva novela '{novel_name}' registrada en la base de datos (ID: {novel_id}).")
+                            self.page_pubsub.send_all({
+                                "status": f"Nova novela '{novel_name[:50]}...' registrada. Procesando capítulos...",
+                                "color": ft.Colors.GREEN_600,
+                                "progress": True
+                            })
+
+                        # Procesar y guardar capítulos
+                        existing_chapters_set = obtener_capitulos_existentes(novel_id)
+                        chapters_to_insert = []
+                        
+                        for idx, cap_info in enumerate(datos_capitulos):
+                            nombre_capitulo = cap_info.get('titulo', '').strip()
+                            if nombre_capitulo and nombre_capitulo not in existing_chapters_set:
+                                chapters_to_insert.append({
+                                    "novela_id": novel_id,
+                                    "nombre": nombre_capitulo,
+                                    "url": cap_info.get('url', ''),
+                                    "created_at": datetime.now() + timedelta(microseconds=idx),
+                                    "updated_at": datetime.now() + timedelta(microseconds=idx)
+                                })
+                        
+                        if chapters_to_insert:
+                            coleccion_app_capitulo.insert_many(chapters_to_insert)
+                            logger.info(f"Insertados {len(chapters_to_insert)} nuevos capítulos para la novela ID {novel_id}.")
+                            self.page_pubsub.send_all({
+                                "status": f"Insertados {len(chapters_to_insert)} nuevos capítulos para '{novel_name[:30]}...'.",
+                                "color": ft.Colors.GREEN_600,
+                                "progress": True
+                            })
+                        else:
+                            logger.info(f"No se encontraron nuevos capítulos para la novela ID {novel_id}.")
+                            self.page_pubsub.send_all({
+                                "status": f"No se encontraron nuevos capítulos para '{novel_name[:30]}...'.",
+                                "color": ft.Colors.BLUE_600,
+                                "progress": True
+                            })
                     else:
-                        logger.info(f"No se encontraron nuevos capítulos para la novela ID {novel_id}.")
-                        self.page_pubsub.send_all({
-                            "status": f"No se encontraron nuevos capítulos para '{novel_name[:30]}...'.",
-                            "color": ft.Colors.BLUE_600,
-                            "progress": True
-                        })
-                    
+                        print(f"La novela contiene uno de los siguientes géneros excluidos y será ignorada: {', '.join(self.generos_excluidos)}")
                     # Pequeña pausa para no sobrecargar el servidor
                     time.sleep(1)
                     

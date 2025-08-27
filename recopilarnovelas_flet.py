@@ -1,3 +1,4 @@
+
 import base64
 import os
 import flet as ft
@@ -24,6 +25,12 @@ import os
 from tempfile import gettempdir
 from urllib.parse import urlparse
 from fpdf import FPDF
+import logging
+
+# --- Logging Configuration ---
+# Configuración básica del logger
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Configuration
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://192.168.1.11:27017")
@@ -32,7 +39,6 @@ COLLECTION_SITIOS = "app_sitio"
 COLLECTION_NOVELAS = "app_novela"
 COLLECTION_CAPITULOS = "app_capitulo"
 COLLECTION_CONTENIDO_CAPITULOS = 'app_contenidocapitulo'
-
 # Initialize MongoDB client
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
@@ -40,11 +46,9 @@ collection_sitios = db[COLLECTION_SITIOS]
 collection_novelas = db[COLLECTION_NOVELAS]
 collection_capitulos = db[COLLECTION_CAPITULOS]
 collection_contenido_capitulos = db[COLLECTION_CONTENIDO_CAPITULOS]
-
 # IDs de Sitios (Constantes para mejorar mantenibilidad)
 FANMTL_SITIO_ID = '67de23f6e131d527f2995103'
 TUNOVELA_LIGERA_SITIO_ID = '680ecb15e1ce8081ecb8b4d1'
-
 # --- Límites de caracteres para servicios de traducción (ajusta según sea necesario) ---
 CHARACTER_LIMITS = {
     'google': 5000, # Ejemplo, verifica el límite real
@@ -52,6 +56,13 @@ CHARACTER_LIMITS = {
     'bing': 5000, # Ejemplo, verifica el límite real
     # Agrega límites para otros servicios si los usas (ej. deepl, libre)
 }
+# --- Additional Constants ---
+DEFAULT_SLEEP_TIME = 3
+PARAGRAPH_DELIMITER = "\n---PARAGRAPH_DELIMITER---\n"
+TEMP_IMAGE_FILENAME = "imagen_descargada.jpg"
+PINGO_FONT_PATH = os.path.join(os.getcwd(), 'recopilarnovelasdjango', 'static', 'fonts', 'Poppins-Regular.ttf')
+# --- Constantes de Paginación ---
+NOVELAS_POR_PAGINA = 20 # Ajusta este número según el rendimiento deseado
 
 # --- Tema Oscuro Personalizado ---
 def create_dark_theme():
@@ -136,16 +147,13 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK # Activar modo oscuro
     # Aplicar tema oscuro personalizado
     page.theme = create_dark_theme()
-    
     filepicker = ft.FilePicker()
     save_file_path = ft.Text()
     page.overlay.append(filepicker)
-
     contar_capitulos = 0
     lista_capitulos = []
     ids_contenido_capitulo = []
     txt_number = ft.Text(value="0", text_align=ft.TextAlign.CENTER, size=16, weight=ft.FontWeight.BOLD)
-    
     # --- Botones con estilo mejorado para tema oscuro ---
     btn_epub=ft.ElevatedButton(
         "Epub",
@@ -186,11 +194,11 @@ def main(page: ft.Page):
             try:
                 return func(texto)
             except Exception as e:
-                print(f"Fallo en {name}: {e}")
+                logger.warning(f"Fallo en {name}: {e}")
                 continue
         return texto
 
-    def traducir_texto_largo(texto: str, delimitador: str = "\n---PARAGRAPH_DELIMITER---\n") -> str:
+    def traducir_texto_largo(texto: str, delimitador: str = PARAGRAPH_DELIMITER) -> str:
         """
         Traduce texto largo dividiéndolo si excede el límite de caracteres del servicio.
         Esta función envuelve la función `traducir` original para manejar límites.
@@ -237,7 +245,6 @@ def main(page: ft.Page):
         bgcolor=ft.Colors.GREY_800, # Fondo oscuro para el banner
         surface_tint_color=ft.Colors.DEEP_PURPLE_300 # Tinte del tema primario
     )
-    
     progress_ring = ft.ProgressRing(visible=False, stroke_width=5, color=ft.Colors.DEEP_PURPLE_300) # Color del anillo
 
     def open_banner(fondo, icono, contenido):
@@ -256,10 +263,57 @@ def main(page: ft.Page):
         }
         return str(collection_contenido_capitulos.insert_one(novel_data).inserted_id)
 
+    def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_id, traducir_flag=False, delimitador=PARAGRAPH_DELIMITER):
+        """Función auxiliar para extraer y guardar contenido de capítulos."""
+        div_contenido = soup.find('div', class_=selector_css)
+        if div_contenido:
+            textos_originales = [p.getText() for p in div_contenido.find_all('p') if p.getText().strip()]
+            if textos_originales:
+                texto_capitulo = ""
+                if traducir_flag:
+                    texto_a_traducir = delimitador.join(textos_originales)
+                    texto_traducido_completo = traducir_texto_largo(texto_a_traducir, delimitador)
+                    # Reemplazar el delimitador por etiquetas <p> para construir el HTML
+                    texto_capitulo = f"<p>{texto_traducido_completo.replace(delimitador, '</p><p>')}</p>"
+                else:
+                    texto_capitulo = ''.join([f"<p>{texto}</p>" for texto in textos_originales])
+            else:
+                texto_capitulo = "<p>(Sin contenido)</p>"
+            
+            _id = enviar_contenido_capitulo(novela_id, capitulo_id, texto_capitulo)
+            logger.info(f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}")
+            open_banner(
+                ft.Colors.GREEN_900, # Fondo más oscuro para éxito
+                ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.GREEN_300, size=40),
+                [
+                    ft.Text(
+                        value=f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}",
+                        color=ft.Colors.WHITE, # Texto blanco
+                        size=14
+                    ),
+                ]
+            )
+            return _id
+        else:
+            logger.error(f"Error: No se encontró el contenido del capítulo con selector {selector_css}.")
+            open_banner(
+                ft.Colors.RED_900, # Fondo más oscuro para error
+                ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
+                [
+                    ft.Text(
+                        value=f"Error: No se encontró el contenido del capítulo con selector {selector_css}.",
+                        color=ft.Colors.WHITE, # Texto blanco
+                        size=14
+                    ),
+                ]
+            )
+            return None
+
     def manejar_driver_capitulos(driver, novela_id, capitulo_id):
         # --- Cambio aquí: Obtener novela_doc una sola vez ---
         novela_doc = collection_novelas.find_one({'_id': ObjectId(novela_id)})
         if not novela_doc:
+            logger.error("Error: Novela no encontrada.")
             open_banner(
                 ft.Colors.RED_900, # Fondo más oscuro para error
                 ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
@@ -275,95 +329,16 @@ def main(page: ft.Page):
         sitio_id = novela_doc.get('sitio_id')
         # FANMTL.com
         if FANMTL_SITIO_ID == sitio_id: # Usar constante
-            time.sleep(3)
+            time.sleep(DEFAULT_SLEEP_TIME)
             soup = bs(driver.page_source, 'html.parser')
-            div_contenido = soup.find('div', class_='chapter-content')
-            if div_contenido:
-                # --- Cambio aquí: Traducir texto completo ---
-                # Obtener todos los textos de los párrafos
-                textos_originales = [p.getText() for p in div_contenido.find_all('p') if p.getText().strip()]
-                if textos_originales: # Solo si hay texto
-                    # Unir textos con un delimitador único
-                    delimitador = "\n---PARAGRAPH_DELIMITER---\n"
-                    texto_a_traducir = delimitador.join(textos_originales)
-                    # Traducir el texto completo (manejando límites)
-                    texto_traducido_completo = traducir_texto_largo(texto_a_traducir, delimitador)
-                    # Dividir el texto traducido de vuelta en párrafos
-                    textos_traducidos = texto_traducido_completo.split("--- párrafo_delimiter ---")
-                    # Construir el HTML con los textos traducidos
-                    # Asegurarse de que haya suficientes textos traducidos
-                    texto_capitulo = ''.join([f"<p>{t}</p>" for t in textos_traducidos[:len(textos_originales)]])
-                else:
-                    texto_capitulo = "<p>(Sin contenido)</p>"
-                _id = enviar_contenido_capitulo(novela_id, capitulo_id, texto_capitulo)
-                print(f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}")
-                open_banner(
-                    ft.Colors.GREEN_900, # Fondo más oscuro para éxito
-                    ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.GREEN_300, size=40),
-                    [
-                        ft.Text(
-                            value=f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}",
-                            color=ft.Colors.WHITE, # Texto blanco
-                            size=14
-                        ),
-                    ]
-                )
-            else:
-                open_banner(
-                    ft.Colors.RED_900, # Fondo más oscuro para error
-                    ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
-                    [
-                        ft.Text(
-                            value="Error: No se encontró el contenido del capítulo en FANMTL.",
-                            color=ft.Colors.WHITE, # Texto blanco
-                            size=14
-                        ),
-                    ]
-                )
+            _id = _extraer_y_guardar_contenido(soup, 'chapter-content', novela_id, capitulo_id, traducir_flag=True, delimitador=PARAGRAPH_DELIMITER)
         # tunovelaligera.com
         elif TUNOVELA_LIGERA_SITIO_ID == sitio_id: # Usar elif y constante
-            time.sleep(3)
+            time.sleep(DEFAULT_SLEEP_TIME)
             soup = bs(driver.page_source, 'html.parser')
-            div_contenido = soup.find('div', class_='entry-content_wrap')
-            if div_contenido:
-                # --- Cambio aquí: No se traduce para este sitio según el original ---
-                # Obtener todos los textos de los párrafos
-                textos_originales = [p.getText() for p in div_contenido.find_all('p') if p.getText().strip()]
-                if textos_originales:
-                    # Unir textos con un delimitador único (opcional aquí, pero por consistencia)
-                    # texto_a_traducir = "\n---PARAGRAPH_DELIMITER---\n".join(textos_originales)
-                    # texto_traducido_completo = traducir_texto_largo(texto_a_traducir) # Si se quisiera traducir
-                    # textos_traducidos = texto_traducido_completo.split("\n---PARAGRAPH_DELIMITER---\n")
-                    # texto_capitulo = ''.join([f"<p>{t}</p>" for t in textos_traducidos[:len(textos_originales)]])
-                    texto_capitulo = ''.join([f"<p>{texto}</p>" for texto in textos_originales])
-                else:
-                    texto_capitulo = "<p>(Sin contenido)</p>"
-                _id = enviar_contenido_capitulo(novela_id, capitulo_id, texto_capitulo)
-                print(f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}")
-                open_banner(
-                    ft.Colors.GREEN_900, # Fondo más oscuro para éxito
-                    ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.GREEN_300, size=40),
-                    [
-                        ft.Text(
-                            value=f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}",
-                            color=ft.Colors.WHITE, # Texto blanco
-                            size=14
-                        ),
-                    ]
-                )
-            else:
-                open_banner(
-                    ft.Colors.RED_900, # Fondo más oscuro para error
-                    ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
-                    [
-                        ft.Text(
-                            value="Error: No se encontró el contenido del capítulo en TunovelaLigera.",
-                            color=ft.Colors.WHITE, # Texto blanco
-                            size=14
-                        ),
-                    ]
-                )
+            _id = _extraer_y_guardar_contenido(soup, 'entry-content_wrap', novela_id, capitulo_id, traducir_flag=False, delimitador=PARAGRAPH_DELIMITER)
         else:
+            logger.warning("Validar sitio para manejar driver no es FANMTL.com o tunovelaligera.com")
             open_banner(
                 ft.Colors.AMBER_900, # Fondo más oscuro para advertencia
                 ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.AMBER_300, size=40),
@@ -384,7 +359,7 @@ def main(page: ft.Page):
         nombre_archivo = os.path.basename(parsed_url.path)
         # Si la URL no contiene nombre, usar uno por defecto
         if not nombre_archivo:
-            nombre_archivo = "imagen_descargada.jpg"
+            nombre_archivo = TEMP_IMAGE_FILENAME
         # Ruta completa de destino
         ruta_destino = os.path.join(temp_dir, nombre_archivo)
         try:
@@ -396,10 +371,13 @@ def main(page: ft.Page):
                 for chunk in respuesta.iter_content(chunk_size=8192):
                     if chunk:
                         archivo.write(chunk)
-            print(f"Imagen descargada en: {ruta_destino}")
+            logger.info(f"Imagen descargada en: {ruta_destino}")
             return ruta_destino
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error de red al descargar: {str(e)}")
+            return None
         except Exception as e:
-            print(f"Error al descargar: {str(e)}")
+            logger.error(f"Error inesperado al descargar: {str(e)}")
             return None
 
     def sanitizar_nombre(nombre):
@@ -542,6 +520,7 @@ def main(page: ft.Page):
                 try:
                     # Verificar si el usuario canceló
                     if e.path is None:
+                        logger.warning("Operación cancelada")
                         open_banner(
                             ft.Colors.YELLOW_900, # Fondo más oscuro para advertencia
                             ft.Icon(ft.Icons.WARNING, color=ft.Colors.AMBER_300, size=40),
@@ -550,19 +529,22 @@ def main(page: ft.Page):
                         return
                     # Guardar el EPUB en la ruta seleccionada
                     epub.write_epub(e.path, book, {})
+                    logger.info(f"EPUB guardado en: {e.path}")
                     # Mostrar confirmación
                     open_banner(
                         ft.Colors.GREEN_900, # Fondo más oscuro para éxito
                         ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_300, size=40),
                         [ft.Text(value=f"EPUB guardado en:\n{e.path}", color=ft.Colors.WHITE, size=14)] # Texto blanco
                     )
-                except PermissionError:
+                except PermissionError as pe:
+                    logger.error(f"Error de permisos al guardar EPUB: {pe}")
                     open_banner(
                         ft.Colors.RED_900, # Fondo más oscuro para error
                         ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
                         [ft.Text(value="Error: Permisos denegados para guardar el archivo", color=ft.Colors.WHITE, size=14)] # Texto blanco
                     )
                 except Exception as e:
+                    logger.error(f"Error al guardar EPUB: {str(e)}")
                     open_banner(
                         ft.Colors.RED_900, # Fondo más oscuro para error
                         ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
@@ -573,12 +555,14 @@ def main(page: ft.Page):
                     if portada and os.path.exists(portada):
                         try:
                             os.remove(portada)
-                        except OSError:
-                            pass # Ignorar errores al eliminar
+                            logger.info("Archivo temporal de portada eliminado.")
+                        except OSError as oe:
+                            logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
             # Dentro de tu función crearepub:
             filepicker.on_result = save_file_result
             filepicker.save_file(file_name=nombre_archivo, allowed_extensions=["epub"])
         except Exception as e:
+            logger.error(f"Error en crearepub: {str(e)}")
             open_banner(
                 ft.Colors.RED_900, # Fondo más oscuro para error
                 ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
@@ -620,7 +604,7 @@ def main(page: ft.Page):
             nombre_traducido = traducir(novela['nombre']) or novela['nombre']
             sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
             pdf = PDF(orientation='P', unit='mm', format='A4')
-            pdf.add_font('Poppins-Regular', '', os.path.join(os.getcwd(),'recopilarnovelasdjango','static','fonts', 'Poppins-Regular.ttf'), uni=True)
+            pdf.add_font('Poppins-Regular', '', PINGO_FONT_PATH, uni=True)
             pdf.set_font('Poppins-Regular', size=12)
             pdf.set_title(nombre_traducido)
             pdf.set_author(novela['autor'])
@@ -651,6 +635,7 @@ def main(page: ft.Page):
             def save_file_result(e: ft.FilePickerResultEvent):
                 try:
                     if e.path is None:
+                        logger.warning("Operación cancelada")
                         open_banner(
                             ft.Colors.YELLOW_900, # Fondo más oscuro para advertencia
                             ft.Icon(ft.Icons.WARNING, color=ft.Colors.AMBER_300, size=40),
@@ -659,18 +644,21 @@ def main(page: ft.Page):
                         return
                     with open(e.path, 'wb') as filepdf:
                         pdf.output(filepdf)
+                    logger.info(f"PDF guardado en: {e.path}")
                     open_banner(
                         ft.Colors.GREEN_900, # Fondo más oscuro para éxito
                         ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_300, size=40),
                         [ft.Text(value=f"PDF guardado en:\n{e.path}", color=ft.Colors.WHITE, size=14)] # Texto blanco
                     )
-                except PermissionError:
+                except PermissionError as pe:
+                    logger.error(f"Error de permisos al guardar PDF: {pe}")
                     open_banner(
                         ft.Colors.RED_900, # Fondo más oscuro para error
                         ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
                         [ft.Text(value="Error: Permisos denegados", color=ft.Colors.WHITE, size=14)] # Texto blanco
                     )
                 except Exception as ex:
+                    logger.error(f"Error al guardar PDF: {str(ex)}")
                     open_banner(
                         ft.Colors.RED_900, # Fondo más oscuro para error
                         ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
@@ -681,11 +669,13 @@ def main(page: ft.Page):
                     if portada and os.path.exists(portada):
                         try:
                             os.remove(portada)
-                        except OSError:
-                            pass # Ignorar errores al eliminar
+                            logger.info("Archivo temporal de portada eliminado.")
+                        except OSError as oe:
+                            logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
             filepicker.on_result = save_file_result
             filepicker.save_file(file_name=nombre_archivo, allowed_extensions=["pdf"])
         except Exception as e:
+            logger.error(f"Error en crearpdf: {str(e)}")
             open_banner(
                 ft.Colors.RED_900, # Fondo más oscuro para error
                 ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
@@ -714,26 +704,38 @@ def main(page: ft.Page):
                 sitios.append(sitio)
             return sitios
         except Exception as e:
-            print(f"Error loading home  {e}")
+            logger.error(f"Error loading home: {e}")
             return []
 
-    def load_sitio_details(sitio_id):
+    # --- Modificar load_sitio_details para paginación ---
+    def load_sitio_details_paginado(sitio_id, pagina=1, por_pagina=NOVELAS_POR_PAGINA):
+        """
+        Carga detalles del sitio y un subconjunto paginado de novelas.
+        Devuelve: (sitio_doc, lista_novelas_pagina, total_novelas)
+        """
         try:
             sitio = collection_sitios.find_one({'_id': ObjectId(sitio_id)})
-            novelas = []
-            for novela in collection_novelas.find({'sitio_id': sitio_id}):
-                novelas.append(novela)
-            return sitio, novelas
+            if not sitio:
+                return None, [], 0
+
+            skip = (pagina - 1) * por_pagina
+            # 1. Obtener el conteo total de novelas para este sitio
+            total_novelas = collection_novelas.count_documents({'sitio_id': sitio_id})
+            # 2. Obtener solo las novelas para la página actual
+            novelas_cursor = collection_novelas.find({'sitio_id': sitio_id}).skip(skip).limit(por_pagina).sort('_id', 1) # Ordenar para consistencia
+            novelas_pagina = list(novelas_cursor) # Convertir cursor a lista
+
+            return sitio, novelas_pagina, total_novelas
         except Exception as e:
-            print(f"Error loading sitio details: {e}")
-            return None, []
+            logger.error(f"Error loading sitio details (paginado) for sitio {sitio_id}, page {pagina}: {e}")
+            return None, [], 0
 
     def load_novela_details(novela_id):
         try:
             # Corrección: Usar argumentos separados para sort
             return collection_novelas.find_one({'_id': ObjectId(novela_id)}), [capitulo for capitulo in collection_capitulos.find({'novela_id': novela_id}).sort('created_at', 1)]
         except Exception as e:
-            print(f"Error loading novela details: {e}")
+            logger.error(f"Error loading novela details: {e}")
             return None, []
 
     def load_ids_capitulos_novela(novela_id):
@@ -741,7 +743,7 @@ def main(page: ft.Page):
             # Corrección: Usar argumentos separados para sort y projection correctamente
             return {str(capitulo['_id']) for capitulo in collection_capitulos.find({'novela_id': novela_id}, {'_id': 1}).sort('created_at', 1)}
         except Exception as e:
-            print(f"Error loading capitulo novela details: {e}")
+            logger.error(f"Error loading capitulo novela details: {e}")
             return set() # Devolver un conjunto vacío en caso de error
 
     def load_ids_urls_capitulos_novela(novela_id):
@@ -749,7 +751,7 @@ def main(page: ft.Page):
             # Corrección: Usar argumentos separados para sort y projection correctamente
             return {str(capitulo['_id']):capitulo['url'] for capitulo in collection_capitulos.find({'novela_id': novela_id}, {'_id': 1, 'url': 1}).sort('created_at', 1)}
         except Exception as e:
-            print(f"Error loading ids urls capitulos details: {e}")
+            logger.error(f"Error loading ids urls capitulos details: {e}")
             return {} # Devolver un diccionario vacío en caso de error
 
     def load_ids_contenido_capitulos_novela(novela_id):
@@ -757,19 +759,19 @@ def main(page: ft.Page):
             # Corrección: Usar argumentos separados para sort y projection correctamente
             return [str(contenido['capitulo_id']) for contenido in collection_contenido_capitulos.find({'novela_id': novela_id}, {'capitulo_id': 1, '_id': 0}).sort('created_at', 1)]
         except Exception as e:
-            print(f"Error loading ids contenido capitulos novela details: {e}")
+            logger.error(f"Error loading ids contenido capitulos novela details: {e}")
             return [] # Devolver una lista vacía en caso de error
 
     def comparar_diccionarios(dic1, dic2):
         return [x for x in dic1 if x not in dic2]
 
     def instanciar_driver():
-        options = webdriver.ChromeOptions()
-        # options = webdriver.FirefoxOptions()
+        # options = webdriver.ChromeOptions()
+        options = webdriver.FirefoxOptions()
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
-        return uc.Chrome(options=options, service = Service(executable_path=ChromeDriverManager().install()))
-        # return webdriver.Firefox(options=options, service=Service(executable_path=f"{os.getcwd()}/geckodriver/geckodriver.exe"))
+        # return uc.Chrome(options=options, service = Service(executable_path=ChromeDriverManager().install()))
+        return webdriver.Firefox(options=options, service=Service(executable_path=f"{os.getcwd()}/geckodriver/geckodriver.exe"))
 
     def obtener_capitulos_webscrapping(cap_faltantes, novela_id):
         global contar_capitulos
@@ -796,10 +798,28 @@ def main(page: ft.Page):
                             ids_contenido_capitulo.append(str(cap)) # Corrección: usar cap en lugar de id
                             page.update()
                             break # Salir del bucle de reintentos si tiene éxito
+                        except requests.exceptions.RequestException as re:
+                            intento += 1
+                            logger.warning(f"Intento {intento} fallido para capítulo {cap} (Error de red): {re}")
+                            if intento == max_intentos:
+                                logger.error(f"Error persistente de red al obtener capítulo {cap}")
+                                open_banner(
+                                    ft.Colors.RED_900, # Fondo más oscuro para error
+                                    ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
+                                    [
+                                        ft.Text(
+                                            value=f"Error de red persistente al obtener capítulo {cap}",
+                                            color=ft.Colors.WHITE, # Texto blanco
+                                            size=14
+                                        ),
+                                    ]
+                                )
+                            time.sleep(2) # Esperar antes de reintentar
                         except Exception as error:
                             intento += 1
-                            print(f"Intento {intento} fallido para capítulo {cap}: {error}")
+                            logger.error(f"Intento {intento} fallido para capítulo {cap} (Error desconocido): {error}")
                             if intento == max_intentos:
+                                logger.error(f"Error persistente al obtener capítulo {cap}")
                                 open_banner(
                                     ft.Colors.RED_900, # Fondo más oscuro para error
                                     ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
@@ -814,6 +834,7 @@ def main(page: ft.Page):
                             time.sleep(2) # Esperar antes de reintentar
         finally:
             driver.quit()
+            logger.info("WebDriver cerrado.")
         progress_ring.visible = False
         btn_procesar.disabled = True
         btn_epub.disabled = False
@@ -882,9 +903,13 @@ def main(page: ft.Page):
             padding=ft.Padding(20, 10, 20, 20) # Padding general de la vista
         )
 
-    def create_detail_view(sitio_id):
-        show_loading()
-        sitio, novelas = load_sitio_details(sitio_id)
+    # --- Modificar create_detail_view para manejar paginación ---
+    def create_detail_view(sitio_id, pagina=1): # Añadir parámetro de página
+        # show_loading() # Opcional: mostrar indicador de carga específico para esta vista
+        logger.info(f"Cargando vista de sitio {sitio_id}, página {pagina}")
+
+        sitio, novelas_pagina, total_novelas = load_sitio_details_paginado(sitio_id, pagina, NOVELAS_POR_PAGINA)
+
         if not sitio:
             return ft.View(
                 f"/sitio/{sitio_id}",
@@ -894,48 +919,100 @@ def main(page: ft.Page):
                         bgcolor=ft.Colors.ERROR,
                         leading=ft.IconButton(
                             ft.Icons.ARROW_BACK,
-                            on_click=lambda _: page.go("/")
+                            on_click=lambda _: page.go("/") # Asumiendo 'page' está disponible
                         )
                     ),
                     ft.Text("Sitio no encontrado", size=20)
                 ]
             )
+
+        total_paginas = (total_novelas + NOVELAS_POR_PAGINA - 1) // NOVELAS_POR_PAGINA # Calcular total de páginas, redondeando hacia arriba
+
+        # --- Función auxiliar para navegar a una página específica ---
+        def ir_a_pagina(p):
+            # Esta función recarga la vista con la nueva página
+            # page.go es la forma estándar de cambiar rutas en Flet
+            page.go(f"/sitio/{sitio_id}?pagina={p}")
+
+        # --- Controles de Paginación ---
+        controles_paginacion = []
+        if total_paginas > 1:
+            # Botón Anterior
+            btn_anterior = ft.IconButton(
+                icon=ft.Icons.ARROW_BACK,
+                disabled=(pagina <= 1),
+                on_click=lambda _: ir_a_pagina(pagina - 1) if pagina > 1 else None,
+                tooltip="Página Anterior"
+            )
+
+            # Texto de página
+            txt_pagina = ft.Text(f"Página {pagina} de {total_paginas}", size=14, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE)
+
+            # Botón Siguiente
+            btn_siguiente = ft.IconButton(
+                icon=ft.Icons.ARROW_FORWARD,
+                disabled=(pagina >= total_paginas),
+                on_click=lambda _: ir_a_pagina(pagina + 1) if pagina < total_paginas else None,
+                tooltip="Página Siguiente"
+            )
+
+            # Selector de página (opcional, más avanzado)
+            # dropdown_paginas = ft.Dropdown(
+            #     options=[ft.dropdown.Option(str(i)) for i in range(1, total_paginas + 1)],
+            #     value=str(pagina),
+            #     on_change=lambda e: ir_a_pagina(int(e.control.value)),
+            #     width=100
+            # )
+
+            controles_paginacion = [
+                ft.Row(
+                    controls=[btn_anterior, txt_pagina, btn_siguiente], # Agregar dropdown_paginas si se usa
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=10
+                )
+            ]
+
+        # --- Vista Principal ---
         return ft.View(
-            f"/sitio/{sitio_id}",
+            f"/sitio/{sitio_id}", # La ruta base sigue siendo la misma
             [
                 ft.AppBar(
                     title=ft.Text(sitio['nombre'], size=16),
-                    bgcolor=ft.Colors.SURFACE, # Usar color del tema
+                    bgcolor=ft.Colors.SURFACE,
                     leading=ft.IconButton(
                         ft.Icons.ARROW_BACK,
                         on_click=lambda _: page.go("/")
                     )
                 ),
-                # --- Información del sitio con mejor presentación ---
+                # Información del sitio
                 ft.Container(
                     content=ft.ResponsiveRow([
                         ft.Column([ft.Text(f"ID: {sitio_id}", size=14, color=ft.Colors.GREY_300)], col=4, horizontal_alignment=ft.CrossAxisAlignment.START),
-                        ft.Column([ft.Text(f"URL: {sitio['url']}", size=14, color=ft.Colors.GREY_300)], col=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        ft.Column([ft.Text(f"Novelas: {len(novelas)}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)], col=4, horizontal_alignment=ft.CrossAxisAlignment.END),
+                        ft.Column([ft.Text(f"URL: {sitio.get('url', 'N/A')}", size=14, color=ft.Colors.GREY_300)], col=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        ft.Column([ft.Text(f"Novelas: {total_novelas}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)], col=4, horizontal_alignment=ft.CrossAxisAlignment.END),
                     ]),
-                    padding=ft.Padding(10, 10, 10, 10), # Padding interno
-                    border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT), # Borde sutil
-                    border_radius=ft.border_radius.all(8), # Bordes redondeados
-                    margin=ft.Margin(0, 0, 0, 15) # Margen inferior
+                    padding=ft.Padding(10, 10, 10, 10),
+                    border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                    border_radius=ft.border_radius.all(8),
+                    margin=ft.Margin(0, 0, 0, 15)
                 ),
-                # --- GridView de novelas con mejor espaciado y relación de aspecto ---
+                # Controles de Paginación (Arriba)
+                *controles_paginacion, # Desempaquetar los controles
+                # GridView de novelas (solo la página actual)
                 ft.GridView(
                     expand=True,
                     runs_count=5,
                     max_extent=180,
                     spacing=10,
                     run_spacing=15,
-                    child_aspect_ratio=0.65, # Relación de aspecto ajustada para tarjetas
-                    controls=[create_novela_card(novela) for novela in novelas]
-                )
+                    child_aspect_ratio=0.65,
+                    controls=[create_novela_card(novela) for novela in novelas_pagina] # Solo novelas de la página actual
+                ),
+                # Controles de Paginación (Abajo)
+                *controles_paginacion, # Desempaquetar los controles otra vez
             ],
             spacing=20,
-            padding=ft.Padding(20, 10, 20, 20) # Padding general de la vista
+            padding=ft.Padding(20, 10, 20, 20)
         )
 
     def create_novel_detail_view(novela_id):
@@ -977,7 +1054,6 @@ def main(page: ft.Page):
             )
             for capitulo in capitulos
         ]
-
         btn_epub.on_click=lambda _: crearepub(novela, capitulos)
         btn_epub.disabled=False if len(capitulos) == contar_capitulos else True
         btn_pdf.on_click=lambda _: crearpdf(novela, capitulos)
@@ -985,7 +1061,6 @@ def main(page: ft.Page):
         cap_faltantes = comparar_diccionarios([str(x['_id']) for x in capitulos], ids_contenido_capitulo)
         btn_procesar.disabled= not (len(cap_faltantes) > 0) # Corrección: lógica más clara
         btn_procesar.on_click=lambda _: obtener_capitulos_webscrapping(cap_faltantes, novela_id)
-        
         # IDs de Sitios (Constantes para mejorar mantenibilidad)
         FANMTL_SITIO_ID = '67de23f6e131d527f2995103'
         TUNOVELA_LIGERA_SITIO_ID = '680ecb15e1ce8081ecb8b4d1'
@@ -1002,7 +1077,6 @@ def main(page: ft.Page):
             'created_at': 'Fecha Creacion en Base de Datos',
             'updated_at': 'Fecha Modificacion en Base de Datos',
         }
-        
         # --- Vista de detalles con mejor organización y estilo ---
         return ft.View(
             f"/novela/{novela_id}",
@@ -1065,10 +1139,8 @@ def main(page: ft.Page):
                     border_radius=ft.border_radius.all(8), # Bordes redondeados
                     margin=ft.Margin(0, 0, 0, 5) # Margen inferior
                 ),
-                
                 # --- Sección de controles y lista de capítulos ---
                 ft.Divider(height=5, thickness=0, color=ft.Colors.OUTLINE_VARIANT), # Divisor visual
-                
                 ft.ResponsiveRow([
                     # Columna de controles (lado izquierdo)
                     ft.Container(
@@ -1123,19 +1195,32 @@ def main(page: ft.Page):
             padding=ft.Padding(20, 10, 20, 20) # Padding general de la vista
         )
 
+    # --- Modificar route_change para manejar el parámetro de página ---
     def route_change(route):
-        if AppState.loading:
-            return
+        # ... manejo de loading ...
         page.views.clear()
         if page.route == "/":
             page.views.append(create_home_view())
         else:
-            parts = page.route.split("/")
+            parts = page.route.split("?")[0].split("/") # Separar ruta de query params
+            query_params = {}
+            if "?" in page.route:
+                query_string = page.route.split("?")[1]
+                # Parseo básico más robusto
+                try:
+                    query_params = dict(param.split("=") for param in query_string.split("&") if param)
+                except ValueError:
+                    logger.warning(f"Error al parsear query params: {query_string}")
+                    query_params = {}
+
+            pagina = int(query_params.get("pagina", 1)) # Obtener página, por defecto 1
+
             if len(parts) > 2 and parts[1] == "sitio":
-                page.views.append(create_detail_view(parts[2]))
-            elif len(parts) > 2 and parts[1] == "novela": # Corrección: usar elif
+                # Pasar el número de página a create_detail_view
+                page.views.append(create_detail_view(parts[2], pagina=pagina))
+            elif len(parts) > 2 and parts[1] == "novela":
                 page.views.append(create_novel_detail_view(parts[2]))
-        hide_loading()
+        # ... manejo de loading ...
         page.update()
 
     def navigate_to_detail(sitio_id):
