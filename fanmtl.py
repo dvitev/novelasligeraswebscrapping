@@ -74,7 +74,6 @@ def obtener_capitulos_existentes(novel_id: str) -> set:
         )
     }
 
-# --- Funciones del código original que no deben ser alteradas ---
 def obtener_datos_novela(driver, url_novela):
     """
     Obtiene los datos de una novela individual basándose en la estructura HTML
@@ -161,16 +160,15 @@ def obtener_datos_novela(driver, url_novela):
 
     return datos_novela
 
+# --- Función corregida para procesar capítulos con paginación AJAX ---
 def procesar_capitulos(driver, url_novela):
     """
     Procesa la lista de capítulos de una novela basándose en la estructura HTML
     del documento adjunto (Pasted_Text_1753570645407.txt).
+    Ahora maneja correctamente la paginación AJAX basada en data-ajax-update.
     """
     logger.info(f"Procesando capítulos de la novela: {url_novela}")
     capitulos = []
-    
-    # La URL base para los capítulos parece ser la misma que la de la novela
-    # según la estructura del documento adjunto.
     
     # Asegurarse de que estamos en la pestaña de capítulos
     try:
@@ -187,114 +185,139 @@ def procesar_capitulos(driver, url_novela):
         except TimeoutException:
             logger.info("Pestaña de capítulos no encontrada o ya activa.")
 
-        # Esperar a que la lista de capítulos esté presente
+        # Esperar a que el contenedor de la lista de capítulos esté presente
         WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "ul.chapter-list, .chapter-item"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "#chpagedlist"))
         )
 
-        # Encontrar todos los elementos de capítulo
-        # El documento adjunto muestra una lista con clase 'chapter-list'
-        # y elementos 'li' que contienen enlaces 'a' a los capítulos.
-        elementos_capitulos = driver.find_elements(By.CSS_SELECTOR, "ul.chapter-list li a, .chapter-item a")
-
-        if not elementos_capitulos:
-            logger.warning("No se encontraron elementos de capítulo.")
-            # Intento alternativo: si los capítulos están directamente en enlaces dentro de un div
-            elementos_capitulos = driver.find_elements(By.CSS_SELECTOR, "div a[href*='novel/'][href*='_']")
-
-        for elemento in elementos_capitulos:
-            capitulo_info = {'titulo': 'N/A', 'url': 'N/A'}
-            try:
-                # El texto del enlace es el título del capítulo
-                capitulo_info['titulo'] = elemento.find_element(By.TAG_NAME, 'strong').text.strip()
-                # La URL del capítulo es el href del enlace
-                capitulo_info['url'] = urljoin(url_novela, elemento.get_attribute('href'))
-            except Exception as e:
-                logger.warning(f"No se encontró el enlace del capítulo o hubo un error: {e}")
-            capitulos.append(capitulo_info)
-
-        # --- Manejo de Paginación de Capítulos ---
-        # El documento adjunto muestra paginación: <ul class="pagination">
-        current_page_url = driver.current_url
+        # Inicializar variables para el bucle de paginación
         pagina_actual = 1
-        total_paginas_procesadas = 1
+        total_paginas_procesadas = 0
+        max_paginas = 50 # Límite de seguridad para evitar bucles infinitos
 
-        while True: # Bucle para manejar múltiples páginas de capítulos
-            logger.debug(f"Procesando página de capítulos {pagina_actual}")
+        while total_paginas_procesadas < max_paginas:
+            logger.debug(f"Procesando página de capítulos {pagina_actual} (Intento de scraping #{total_paginas_procesadas + 1})")
             
-            # Buscar enlaces de paginación
+            # Esperar a que el contenedor de capítulos/paginación esté presente
             try:
-                pagination_container = driver.find_element(By.CSS_SELECTOR, ".pagination-container")
-                pagination_links = pagination_container.find_elements(By.CSS_SELECTOR, ".pagination a")
+                chpagedlist_container = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#chpagedlist"))
+                )
+            except TimeoutException:
+                logger.error("No se encontró el contenedor #chpagedlist. Posible error de carga o estructura inesperada.")
+                break # Salir del bucle si no se puede encontrar el contenedor
+
+            # Encontrar todos los elementos de capítulo *dentro* del contenedor actualizado
+            # Seleccionar capítulos basados en el HTML proporcionado: <li><a href=...>
+            elementos_capitulos = chpagedlist_container.find_elements(By.CSS_SELECTOR, "ul.chapter-list li a")
+
+            if not elementos_capitulos:
+                 logger.warning(f"No se encontraron capítulos en la página actual (intentos de scraping: {total_paginas_procesadas + 1}).")
+                 # Intento alternativo: buscar enlaces directos de capítulos si la estructura es distinta
+                 # Esto es un fallback genérico, adaptar según sea necesario
+                 elementos_capitulos = chpagedlist_container.find_elements(By.CSS_SELECTOR, "a[href*='_']") 
+                 if elementos_capitulos:
+                     logger.info("Se encontraron enlaces de capítulos con selector alternativo.")
+
+            logger.info(f"Se encontraron {len(elementos_capitulos)} capítulos en la página actual.")
+            for elemento in elementos_capitulos:
+                capitulo_info = {'titulo': 'N/A', 'url': 'N/A'}
+                try:
+                    # El texto del enlace es el título del capítulo (etiqueta <strong>)
+                    strong_element = elemento.find_element(By.TAG_NAME, 'strong')
+                    capitulo_info['titulo'] = strong_element.text.strip()
+                    # La URL del capítulo es el href del enlace
+                    capitulo_info['url'] = urljoin(url_novela, elemento.get_attribute('href'))
+                    capitulos.append(capitulo_info)
+                except Exception as e:
+                    logger.warning(f"No se encontró el título o la URL del capítulo: {e}. Elemento: {elemento.get_attribute('outerHTML')[:100]}...")
+                    # Intentar con el texto del enlace si no hay <strong>
+                    try:
+                        capitulo_info['titulo'] = elemento.text.strip()
+                        capitulo_info['url'] = urljoin(url_novela, elemento.get_attribute('href'))
+                        if capitulo_info['titulo'] != 'N/A': # Asegurarse que tiene título
+                            capitulos.append(capitulo_info)
+                    except:
+                         logger.warning(f"Error adicional al intentar obtener título/URL alternativo.")
+                         continue # Pasar al siguiente elemento
+
+            # --- Manejo de Paginación de Capítulos AJAX ---
+            # Buscar enlaces de paginación *dentro* del contenedor actualizado
+            try:
+                # Buscar enlaces de paginación AJAX dentro del contenedor #chpagedlist
+                # Estos enlaces tienen data-ajax="true" y data-ajax-update="#chpagedlist"
+                pagination_links = chpagedlist_container.find_elements(By.CSS_SELECTOR, ".pagination a[data-ajax='true'][data-ajax-update='#chpagedlist']")
                 
-                # Encontrar el enlace de "Siguiente" o la página siguiente numérica
+                if not pagination_links:
+                    logger.info("No se encontraron más enlaces de paginación AJAX. Finalizando.")
+                    break # No hay más páginas
+                
+                # Buscar el enlace de "Siguiente" (>) o "Última" (>>) o el número de página siguiente
                 next_page_link = None
-                next_page_number = None
-                enlaces_pagina = []
-                
                 for link in pagination_links:
                     texto = link.text.strip()
-                    if texto.lower() in ['>', 'next', 'siguiente']:
+                    if texto == '>': # Siguiente página
                         next_page_link = link
+                        logger.debug("Encontrado enlace 'Siguiente' (>), procesando...")
                         break
-                    elif texto.isdigit():
-                        enlaces_pagina.append((int(texto), link))
+                    elif texto == '>>': # Última página (opcional, puede seguir el bucle)
+                        next_page_link = link
+                        logger.debug("Encontrado enlace 'Última' (>>), procesando...")
+                        break
+                    # Opcional: Intentar encontrar el número de página siguiente al actual
+                    # elif texto.isdigit() and int(texto) > pagina_actual:
+                    #     next_page_link = link
+                    #     pagina_actual = int(texto)
+                    #     break
                 
-                # Si no hay ">", buscar la página numérica siguiente
-                if not next_page_link:
-                    enlaces_pagina.sort(key=lambda x: x[0]) # Ordenar por número de página
-                    for num_pagina, link_pagina in enlaces_pagina:
-                        if num_pagina > pagina_actual:
-                            next_page_link = link_pagina
-                            next_page_number = num_pagina
-                            break
-                
-                # Si se encontró un enlace de página siguiente, hacer clic y continuar
                 if next_page_link:
-                    logger.info(f"Navegando a la página de capítulos {next_page_number if next_page_number else 'siguiente'}")
+                    logger.info(f"Navegando a la siguiente página de capítulos...")
+                    # Obtener el atributo href para información (aunque no se use para navegar directamente)
+                    href = next_page_link.get_attribute('href')
+                    logger.debug(f"URL de paginación AJAX: {href}")
+                    
+                    # Hacer clic en el enlace AJAX
                     next_page_link.click()
-                    time.sleep(2) # Espera para cargar la nueva página
                     
-                    # Esperar a que los nuevos capítulos se carguen
-                    WebDriverWait(driver, 10).until(
-                        EC.staleness_of(elementos_capitulos[0]) # Esperar a que los elementos anteriores sean obsoletos
-                    )
-                    # O simplemente esperar un momento y volver a encontrar elementos
-                    # time.sleep(2)
-                    
-                    # Volver a encontrar los elementos de capítulo en la nueva página
-                    elementos_capitulos_siguientes = driver.find_elements(By.CSS_SELECTOR, "ul.chapter-list li a, .chapter-item a")
-                    if not elementos_capitulos_siguientes:
-                        elementos_capitulos_siguientes = driver.find_elements(By.CSS_SELECTOR, "div a[href*='novel/'][href*='_']")
-                    
-                    for elemento in elementos_capitulos_siguientes:
-                        capitulo_info = {'titulo': 'N/A', 'url': 'N/A'}
-                        try:
-                            capitulo_info['titulo'] = elemento.find_element(By.TAG_NAME, 'strong').text.strip()
-                            capitulo_info['url'] = urljoin(url_novela, elemento.get_attribute('href'))
-                            
-                            # Evitar duplicados si es necesario (aunque es poco probable entre páginas)
-                            if capitulo_info not in capitulos:
-                                capitulos.append(capitulo_info)
-                        except Exception as e:
-                            logger.warning(f"Error al procesar capítulo en página {pagina_actual+1}: {e}")
-                    
-                    pagina_actual = next_page_number if next_page_number else pagina_actual + 1
-                    total_paginas_procesadas += 1
-                    
-                    # Medida de seguridad para evitar bucles infinitos
-                    if total_paginas_procesadas > 50: # Ajustar según sea necesario
-                        logger.warning("Se alcanzó el límite máximo de páginas de capítulos procesadas.")
-                        break
+                    # Esperar a que el contenido del contenedor #chpagedlist se actualice
+                    # WebDriverWait espera a que un elemento cambie su estado (por ejemplo, staleness)
+                    # o que un nuevo elemento aparezca. Aquí, esperamos que el contenedor se actualice.
+                    try:
+                        # Opción 1: Esperar a que el contenedor existente se vuelva obsoleto (stale)
+                        # WebDriverWait(driver, 10).until(EC.staleness_of(chpagedlist_container))
+                        # Opción 2: Esperar a que un nuevo contenedor con el mismo selector esté presente
+                        # (Esto puede no funcionar bien si el mismo elemento se actualiza en su lugar)
+                        # Opción 3: Esperar un tiempo fijo después del clic, que es menos robusto pero a veces necesario
+                        # time.sleep(2) 
+                        # Opción 4: Esperar a que desaparezca un elemento que sabemos que debería desaparecer
+                        # o que aparezca un indicador de carga (si lo hubiera)
+                        # Opción 5: Volver a localizar el contenedor #chpagedlist después del clic
+                        WebDriverWait(driver, 10).until(
+                            lambda d: d.find_element(By.CSS_SELECTOR, "#chpagedlist")
+                        )
+                        # Opción 6: Esperar a que haya más capítulos o que la paginación haya cambiado
+                        
+                        # Pequeña pausa adicional para asegurar la carga completa del contenido AJAX
+                        time.sleep(1.5) 
+                        
+                        total_paginas_procesadas += 1
+                        # Incrementar pagina_actual solo si se está usando la lógica de número de página
+                        # pagina_actual += 1 
+                        
+                    except TimeoutException:
+                        logger.warning("Tiempo de espera agotado esperando la actualización del contenedor de capítulos AJAX.")
+                        # Opcional: Intentar continuar si hay nuevos capítulos visibles
+                        # break # Si se quiere detener en caso de error de carga
+                        
                 else:
-                    logger.info("No se encontró más paginación. Finalizando.")
-                    break # No hay más páginas
+                    logger.info("No se encontró un enlace de página siguiente válido. Finalizando.")
+                    break # No hay más páginas para hacer clic
 
             except NoSuchElementException:
-                logger.info("No se encontró paginación de capítulos o se terminaron las páginas.")
+                logger.info("No se encontró paginación de capítulos AJAX o se terminaron las páginas.")
                 break # Salir del bucle si no hay paginación
             except Exception as e:
-                logger.error(f"Error al manejar la paginación de capítulos: {e}")
+                logger.error(f"Error al manejar la paginación de capítulos AJAX: {e}")
                 break # Salir del bucle en caso de error inesperado
 
     except TimeoutException:
@@ -319,8 +342,8 @@ class FanmtlScraperAutomatico:
         self.driver = driver
         self.page_pubsub = page_pubsub
         self.existing_novels = existing_novels
-        self.base_url = "https://www.fanmtl.com"
-        self.list_url = f"{self.base_url}/list/all/Completed-onclick-0.html"
+        self.base_url = "https://www.fanmtl.com" # Corregido: Quitado espacio al final
+        self.list_url = f"{self.base_url}/list/all/all-onclick-0.html"
         self.current_page = 1
         # Lista de géneros a excluir
         self.generos_excluidos = {'Josei', 'LGBT', 'Shoujo Ai', 'Shounen Ai', 'Yaoi', 'Yuri', 'BL', 'BG', 'GL'}
@@ -432,6 +455,7 @@ class FanmtlScraperAutomatico:
             all_novel_urls = pd.read_csv('all_novel_fanmtl_urls.csv')['url'].tolist()
         except:
             all_novel_urls = []
+        
         urls_novelas = obtener_novelas_url_existentes()
         
         if not all_novel_urls:
@@ -451,7 +475,7 @@ class FanmtlScraperAutomatico:
                 
                 # b. Si no es la última página, navegar a la siguiente
                 if page + 1 < total_pages:
-                    next_page_url = f"{self.base_url}/list/all/Completed-onclick-{page + 1}.html"
+                    next_page_url = f"{self.base_url}/list/all/all-onclick-{page + 1}.html"
                     logger.info(f"Navegando a: {next_page_url}")
                     self.page_pubsub.send_all({
                         "status": f"Navegando a la página {page + 2}...",
@@ -491,7 +515,7 @@ class FanmtlScraperAutomatico:
                     # La lista de géneros de tu novela
                     generos_novela = set(datos_detalle['generos'])
                     if self.generos_excluidos.isdisjoint(generos_novela):
-                        datos_capitulos = procesar_capitulos(self.driver, novel_url)
+                        datos_capitulos = procesar_capitulos(self.driver, novel_url) # Usar la función corregida
                         
                         # --- Lógica de envío de datos a MongoDB ---
                         novel_name = datos_detalle['titulo'].upper()
@@ -675,645 +699,5 @@ def main(page: ft.Page):
     )
 
 # Para ejecutar la aplicación Flet
-ft.app(target=main)
-# O para ejecutar en el navegador
-# flet.app(target=main, view=flet.WEB_BROWSER)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# import flet as ft
-# import time
-# from datetime import datetime, timedelta
-# from typing import Dict, List, Optional
-# from bs4 import BeautifulSoup
-# from google_trans_new import google_translator
-# from langdetect import detect, DetectorFactory
-# from pymongo import MongoClient
-# from selenium import webdriver
-# from selenium.webdriver.chrome.service import Service
-# from selenium.webdriver.common.by import By
-# from webdriver_manager.chrome import ChromeDriverManager
-# import translators as ts
-# import undetected_chromedriver as uc
-# import threading
-# from bson.objectid import ObjectId
-# import os
-
-# # Configuración inicial
-# DetectorFactory.seed = 0
-# MONGO_URI = 'mongodb://192.168.1.11:27017/'
-# DB_NAME = 'recopilarnovelas'
-# SITIO_ID = '67de23f6e131d527f2995103'
-
-# # Cliente MongoDB
-# client = MongoClient(MONGO_URI)
-# db = client[DB_NAME]
-# coleccion_app_novela = db['app_novela']
-# coleccion_app_capitulo = db['app_capitulo']
-
-# # Paleta de colores
-# COLOR_PRIMARY = "#6200EE"
-# COLOR_SECONDARY = "#03DAC6"
-# COLOR_BACKGROUND = "#FFFFFF"
-# COLOR_ERROR = "#B00020"
-
-# def traducir(texto: str) -> str:
-#     """Traduce texto usando múltiples servicios de traducción"""
-#     translators = [
-#         ('bing', lambda t: ts.translate_text(t, translator='bing', to_language='es')),
-#         ('google', lambda t: ts.translate_text(t, translator='google', to_language='es')),
-#         ('google_new', lambda t: google_translator().translate(t, lang_tgt='es'))
-#     ]
-    
-#     for name, func in translators:
-#         try:
-#             return func(texto)
-#         except Exception as e:
-#             print(f"Fallo en {name}: {e}")
-#             continue
-#     return texto
-
-# def obtener_novelas_existentes() -> Dict[str, str]:
-#     """Obtiene un diccionario de novelas existentes {nombre: id}"""
-#     return {
-#         novela['nombre']: str(novela['_id'])
-#         for novela in coleccion_app_novela.find(
-#             {'sitio_id': SITIO_ID},
-#             {'nombre': 1}
-#         )
-#     }
-
-# def obtener_capitulos_existentes(novel_id: str) -> set:
-#     """Obtiene conjunto de nombres de capítulos existentes"""
-#     return {
-#         str(cap['nombre']).strip()
-#         for cap in coleccion_app_capitulo.find(
-#             {'novela_id': novel_id},
-#             {'nombre': 1}
-#         )
-#     }
-
-# def obtener_datos_novela(driver: webdriver.Chrome, url: str) -> dict:
-#     """Extrae datos de la novela desde la URL"""
-#     driver.get(url)
-#     time.sleep(3)
-#     soup = BeautifulSoup(driver.page_source, 'html.parser')
-    
-#     info = soup.find('div', class_='novel-info')
-    
-#     return {
-#         "sitio_id": SITIO_ID,
-#         "nombre": info.find('h1', class_='novel-title').text.strip().upper(),
-#         "sinopsis": soup.find('div', class_='summary').find('div', class_='content').text.strip(),
-#         "autor": info.find('div', class_='author').find_all('span')[-1].text.strip(),
-#         "genero": ', '.join(
-#             cat.text.strip() 
-#             for cat in info.find('div', class_='categories').find_all('a')
-#         ),
-#         "status": 'emision' if 'Ongoing' in info.find('div', class_='header-stats').text else 'completo',
-#         "url": url,
-#         "imagen_url": f"https://www.fanmtl.com{soup.find('div', class_='fixed-img').img['src']}",
-#         "created_at": datetime.now(),
-#         "updated_at": datetime.now()
-#     }
-
-# def procesar_capitulos(driver: webdriver.Chrome, novel_id: str, existing_chapters: set):
-#     """Procesa y guarda los capítulos no existentes"""
-#     chapters_to_insert = []
-#     try:
-#         last_pag = BeautifulSoup(driver.page_source, 'html.parser').find('ul', class_='pagination').find_all('a')[-1]
-#         total_pagination = int(last_pag.getText()) if last_pag.getText() != '>>' else int(str(last_pag.get('href')).split('?')[-1].split('&')[0].split('=')[-1])+3   
-#     except:
-#         total_pagination = 3
-#     finally:
-#         page =2
-    
-#     for pag in range(page, total_pagination):
-#         soup = BeautifulSoup(driver.page_source, 'html.parser')
-#         chapters = soup.select('ul.chapter-list a')
-#         for idx,chapter in enumerate(chapters):
-#             nombre = chapter.strong.text.strip()
-#             if nombre not in existing_chapters:
-#                 chapters_to_insert.append({
-#                     "novela_id": novel_id,
-#                     "nombre": nombre,
-#                     "url": f"https://www.fanmtl.com{chapter['href']}",
-#                     "created_at": datetime.now() + timedelta(milliseconds=pag, microseconds=idx),
-#                     "updated_at": datetime.now() + timedelta(milliseconds=pag, microseconds=idx)
-#                 })
-        
-#         li_elements = driver.find_element(By.XPATH, '//*[@id="chpagedlist"]/div/div[2]/div/ul').find_elements(By.TAG_NAME, 'li')
-#         for li in li_elements:
-#             if str(li.text).isdigit():
-#                 if int(li.text)==pag:
-#                     li.find_element(By.TAG_NAME,'a').click()
-#                     break
-#         time.sleep(2)
-    
-#     if chapters_to_insert:
-#         coleccion_app_capitulo.insert_many(chapters_to_insert)
-
-# def main(page: ft.Page):
-#     page.title = "FanMTL Novel Scraper"
-#     page.theme_mode = ft.ThemeMode.LIGHT
-#     page.bgcolor = COLOR_BACKGROUND
-#     page.padding = 20
-#     page.spacing = 20
-#     page.window_width = 600
-#     page.window_height = 400
-#     page.window_resizable = False
-
-#     # UI Components
-#     url_input = ft.TextField(
-#         label="URL de la novela",
-#         hint_text="Ingrese la URL de fanmtl.com",
-#         border_color=COLOR_PRIMARY,
-#         focused_border_color=COLOR_SECONDARY,
-#         width=500
-#     )
-    
-#     status_text = ft.Text(
-#         "",
-#         color=COLOR_ERROR,
-#         visible=False,
-#         size=14
-#     )
-    
-#     progress_ring = ft.ProgressRing(
-#         visible=False,
-#         width=24,
-#         height=24,
-#         color=COLOR_PRIMARY
-#     )
-    
-#     def start_scraping(e):
-#         def run_scraping():
-#             url = url_input.value.strip()
-            
-#             if not url.startswith("https://www.fanmtl.com/"):
-#                 page.pubsub.send_all({
-#                     "status": "URL inválida. Debe comenzar con https://www.fanmtl.com/",
-#                     "color": COLOR_ERROR,
-#                     "progress": False
-#                 })
-#                 return
-            
-#             try:
-#                 page.pubsub.send_all({
-#                     "status": "Iniciando proceso...",
-#                     "color": ft.Colors.BLUE_600,
-#                     "progress": True
-#                 })
-                
-#                 existing_novels = obtener_novelas_existentes()
-                
-#                 # options = webdriver.ChromeOptions()
-#                 # options.add_argument('--disable-blink-features=AutomationControlled')
-#                 # options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
-#                 # # options.add_argument('--headless')
-#                 options = webdriver.FirefoxOptions()
-#                 options.add_argument('--disable-blink-features=AutomationControlled')
-#                 options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
-#                 # return uc.Chrome(options=options, service = Service(executable_path=ChromeDriverManager().install()))
-#                 driver = webdriver.Firefox(options=options, service=Service(executable_path=f"{os.getcwd()}/geckodriver/geckodriver.exe"))
-                
-#                 # driver = uc.Chrome(options=options, service=Service(ChromeDriverManager().install()))
-                
-#                 driver.get(url)
-                
-#                 novel_data = obtener_datos_novela(driver, url)
-#                 novel_name = novel_data['nombre']
-                
-#                 if novel_name in existing_novels:
-#                     novel_id = existing_novels[novel_name]
-#                     page.pubsub.send_all({
-#                         "status": "Novela existente encontrada. Verificando capítulos...",
-#                         "color": ft.Colors.BLUE_600,
-#                         "progress": True
-#                     })
-#                 else:
-#                     novel_id = str(coleccion_app_novela.insert_one(novel_data).inserted_id)
-#                     existing_novels[novel_name] = novel_id
-#                     page.pubsub.send_all({
-#                         "status": "Nueva novela registrada. Procesando capítulos...",
-#                         "color": ft.Colors.BLUE_600,
-#                         "progress": True
-#                     })
-                
-#                 existing_chapters = obtener_capitulos_existentes(novel_id)
-#                 procesar_capitulos(driver, novel_id, existing_chapters)
-                
-#                 page.pubsub.send_all({
-#                     "status": "Proceso completado exitosamente!",
-#                     "color": ft.Colors.GREEN_600,
-#                     "progress": False
-#                 })
-#                 driver.quit()
-                
-#             except Exception as e:
-#                 page.pubsub.send_all({
-#                     "status": f"Error: {str(e)}",
-#                     "color": COLOR_ERROR,
-#                     "progress": False
-#                 })
-        
-#         # Configurar actualizaciones de UI
-#         def on_message(msg):
-#             status_text.value = msg["status"]
-#             status_text.color = msg["color"]
-#             progress_ring.visible = msg["progress"]
-#             page.update()
-            
-#         page.pubsub.subscribe(on_message)
-#         threading.Thread(target=run_scraping, daemon=True).start()
-
-#     start_button = ft.ElevatedButton(
-#         "Iniciar Scraping",
-#         bgcolor=COLOR_PRIMARY,
-#         color=COLOR_BACKGROUND,
-#         on_click=start_scraping
-#     )
-    
-#     # Layout
-#     page.add(
-#         ft.Column(
-#             [
-#                 ft.Container(
-#                     content=ft.Column([
-#                         url_input,
-#                         ft.Row([start_button, progress_ring], alignment=ft.MainAxisAlignment.CENTER),
-#                         status_text
-#                     ]),
-#                     padding=20,
-#                     border_radius=10,
-#                     bgcolor=ft.Colors.WHITE
-#                 )
-#             ],
-#             alignment=ft.MainAxisAlignment.CENTER,
-#             horizontal_alignment=ft.CrossAxisAlignment.CENTER
-#         )
-#     )
-
-# if __name__ == "__main__":
-#     ft.app(target=main)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# import time
-# from datetime import datetime
-# from typing import Dict, List, Optional
-
-# from bs4 import BeautifulSoup
-# from google_trans_new import google_translator
-# from langdetect import detect, DetectorFactory
-# from pymongo import MongoClient
-# from selenium import webdriver
-# from selenium.webdriver.chrome.service import Service
-# from selenium.webdriver.common.by import By
-# from webdriver_manager.chrome import ChromeDriverManager
-# from collections import deque
-
-# import translators as ts
-# import undetected_chromedriver as uc
-
-# # Configuración inicial
-# DetectorFactory.seed = 0
-# MONGO_URI = 'mongodb://192.168.1.11:27017/'
-# DB_NAME = 'recopilarnovelas'
-# SITIO_ID = '67de23f6e131d527f2995103'
-
-# # Cliente MongoDB
-# client = MongoClient(MONGO_URI)
-# db = client[DB_NAME]
-# coleccion_app_novela = db['app_novela']
-# coleccion_app_capitulo = db['app_capitulo']
-
-# def traducir(texto: str) -> str:
-#     """Traduce texto usando múltiples servicios de traducción"""
-#     translators = [
-#         ('bing', lambda t: ts.translate_text(t, translator='bing', to_language='es')),
-#         ('google', lambda t: ts.translate_text(t, translator='google', to_language='es')),
-#         ('google_new', lambda t: google_translator().translate(t, lang_tgt='es'))
-#     ]
-    
-#     for name, func in translators:
-#         try:
-#             return func(texto)
-#         except Exception as e:
-#             print(f"Fallo en {name}: {e}")
-#             continue
-#     return texto  # Retorna original si todos fallan
-
-# def obtener_novelas_existentes() -> Dict[str, str]:
-#     """Obtiene un diccionario de novelas existentes {nombre: id}"""
-#     return {
-#         novela['nombre']: str(novela['_id'])
-#         for novela in coleccion_app_novela.find(
-#             {'sitio_id': SITIO_ID},
-#             {'nombre': 1}
-#         )
-#     }
-
-# def obtener_capitulos_existentes(novel_id: str) -> set:
-#     """Obtiene conjunto de nombres de capítulos existentes"""
-#     return {
-#         str(cap['nombre']).strip()
-#         for cap in coleccion_app_capitulo.find(
-#             {'novela_id': novel_id},
-#             {'nombre': 1}
-#         )
-#     }
-
-# def obtener_datos_novela(driver: webdriver.Chrome, url: str) -> dict:
-#     """Extrae datos de la novela desde la URL"""
-#     driver.get(url)
-#     soup = BeautifulSoup(driver.page_source, 'html.parser')
-    
-#     info = soup.find('div', class_='novel-info')
-    
-#     return {
-#         "sitio_id": SITIO_ID,
-#         "nombre": info.find('h1', class_='novel-title').text.strip().upper(),
-#         "sinopsis": soup.find('div', class_='summary').find('div', class_='content').text.strip(),
-#         "autor": info.find('div', class_='author').find_all('span')[-1].text.strip(),
-#         "genero": ', '.join(
-#             cat.text.strip() 
-#             for cat in info.find('div', class_='categories').find_all('a')
-#         ),
-#         "status": 'emision' if 'Ongoing' in info.find('div', class_='header-stats').text else 'completo',
-#         "url": url,
-#         "imagen_url": f"https://www.fanmtl.com{soup.find('div', class_='fixed-img').img['src']}",
-#         "created_at": datetime.now(),
-#         "updated_at": datetime.now()
-#     }
-
-# def procesar_capitulos(driver: webdriver.Chrome, novel_id: str, existing_chapters: set):
-#     """Procesa y guarda los capítulos no existentes"""
-#     chapters_to_insert = []
-#     last_pag = BeautifulSoup(driver.page_source, 'html.parser').find('ul', class_='pagination').find_all('a')[-1]
-#     total_pagination = int(last_pag.getText()) if last_pag.getText() != '>>' else int(str(last_pag.get('href')).split('?')[-1].split('&')[0].split('=')[-1])+3
-#     page = 2  # Empezamos desde la segunda página
-    
-#     for pag in range(page, total_pagination):
-#         soup = BeautifulSoup(driver.page_source, 'html.parser')
-#         chapters = soup.select('ul.chapter-list a')
-        
-#         for chapter in chapters:
-#             nombre = chapter.strong.text.strip()
-#             if nombre not in existing_chapters:
-#                 chapters_to_insert.append({
-#                     "novela_id": novel_id,
-#                     "nombre": nombre,
-#                     "url": f"https://www.fanmtl.com{chapter['href']}",
-#                     "created_at": datetime.now(),
-#                     "updated_at": datetime.now()
-#                 })
-        
-#         # Manejo de paginación
-#         li_elements = driver.find_element(By.XPATH, '//*[@id="chpagedlist"]/div/div[2]/div/ul').find_elements(By.TAG_NAME, 'li')
-#         for li in li_elements:
-#             if str(li.text).isdigit():
-#                 if int(li.text)==pag:
-#                     li.find_element(By.TAG_NAME,'a').click()
-#                     break
-#         time.sleep(2)  # Espera reducida con posible mejora a WebDriverWait
-    
-#     if chapters_to_insert:
-#         coleccion_app_capitulo.insert_many(chapters_to_insert)
-
-# def main():
-#     existing_novels = obtener_novelas_existentes()
-#     url = 'https://www.fanmtl.com/novel/trainer-i-build-a-home-on-the-back-of-a-xuanwu.html'
-    
-#     # Configuración del driver
-#     options = webdriver.ChromeOptions()
-#     options.add_argument('--disable-blink-features=AutomationControlled')
-#     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
-    
-#     try:
-#         with uc.Chrome(options=options, service=Service(ChromeDriverManager().install())) as driver:
-#             driver.get(url)
-            
-#             # Verificar existencia de la novela
-#             novel_data = obtener_datos_novela(driver, url)
-#             novel_name = novel_data['nombre']
-            
-#             if novel_name in existing_novels:
-#                 novel_id = existing_novels[novel_name]
-#             else:
-#                 novel_id = str(coleccion_app_novela.insert_one(novel_data).inserted_id)
-#                 existing_novels[novel_name] = novel_id  # Actualizar cache
-            
-#             # Procesar capítulos
-#             existing_chapters = obtener_capitulos_existentes(novel_id)
-#             procesar_capitulos(driver, novel_id, existing_chapters)
-            
-#     except Exception as e:
-#         print(f"Error: {e}")
-#     finally:
-#         client.close()
-
-# if __name__ == "__main__":
-#     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# from webdriver_manager.chrome import ChromeDriverManager
-# from selenium.webdriver.chrome.service import Service
-# from selenium.webdriver.common.by import By
-# from bs4 import BeautifulSoup as bs
-# import translators as ts
-# import undetected_chromedriver as uc
-# import pandas as pd
-# from selenium import webdriver
-# import time
-# from pymongo import MongoClient
-# from datetime import datetime
-# import csv
-# from google_trans_new import google_translator
-# from langdetect import detect, DetectorFactory
-# DetectorFactory.seed = 0 
-# from collections import Counter
-# from bson.objectid import ObjectId
-# from difflib import SequenceMatcher
-
-# # =========================
-
-# def traducir(texto):
-#     contenido_p = ''
-#     while True:
-#         try:
-#             contenido_p = ts.translate_text(
-#                 texto, translator='bing', to_language='es')
-#             break
-#         except Exception as e:
-#             print(e)
-#             try:
-#                 contenido_p = ts.translate_text(
-#                     texto, translator='google', to_language='es')
-#                 break
-#             except Exception as e:
-#                 print(e)
-#                 try:
-#                     translator = google_translator() 
-#                     contenido_p = translator.translate(texto, lang_tgt='es')
-#                 except Exception as e:
-#                     print(e)
-#                     pass
-#                 pass
-#             pass
-#     return contenido_p
-
-
-# def existing_novel():
-#     existing_novels =  [{'_id': str(x['_id']),'nombre': x['nombre'], 'url': x['url']} for x in coleccion_app_novela.find({'sitio_id':sitio_id}, {'_id': 1, 'nombre':1, 'url': 1})]
-#     return {x['nombre']:x['_id'] for x in existing_novels}
-
-# def existing_chapters_novel(novel_id):
-#     return {str(x['nombre']).strip().rstrip() for x in coleccion_app_capitulo.find({'novela_id': novel_id}, {'nombre': 1})}
-
-
-# def get_novel_data(driver, novel_info, novel_url):
-#     global sitio_id
-#     html_novel = driver.page_source
-#     soup_novel = bs(html_novel, 'html.parser')
-
-#     title = str(novel_info.find('div', class_='main-head').find('h1', class_='novel-title').getText()).upper().strip().rstrip()
-#     author = novel_info.find('div', class_='main-head').find('div', class_='author').find_all('span')[-1].getText()
-#     genre = ', '.join([x.getText() for x in novel_info.find('div', class_='categories').find_all('a')])
-#     status = novel_info.find('div', class_='header-stats').find_all('span')[-1].find('strong').getText()
-#     print(status)
-#     img_src = f"https://www.fanmtl.com{soup_novel.find('div', class_='fixed-img').find('img').get('src')}"
-#     description = soup_novel.find('div', class_='summary').find('div', class_='content').getText().strip().rstrip()
-
-#     novel_data = {
-#         "sitio_id": sitio_id,
-#         "nombre": title,
-#         "sinopsis": description,
-#         "autor": author,
-#         "genero": genre,
-#         "status": 'emision' if status == 'Ongoing' else 'completo',
-#         "url": novel_url,
-#         "imagen_url": img_src,
-#         "created_at": datetime.now(),
-#         "updated_at": datetime.now()
-#     }
-
-#     return novel_data
-
-
-# def get_chapter_data(driver, novel_id):
-#     global coleccion_app_capitulo
-#     html_novel = driver.page_source
-#     soup_novel = bs(html_novel, 'html.parser')
-#     pagination = soup_novel.find('ul', class_='pagination')
-#     last_pag = pagination.find_all('a')[-1]
-#     total_pagination = int(last_pag.getText()) if last_pag.getText() != '>>' else int(str(last_pag.get('href')).split('?')[-1].split('&')[0].split('=')[-1])+3
-    
-#     existing_chapters = existing_chapters_novel(novel_id)
-#     for pag in range(2,total_pagination):
-#         lists_chapters = soup_novel.find('ul', class_='chapter-list').find_all('a')
-#         for chapter in lists_chapters:
-#             chapter_name = chapter.find('strong').getText().strip().rstrip()
-#             chapter_url = f"https://www.fanmtl.com{str(chapter.get('href'))}"
-#             if chapter_name not in existing_chapters:
-#                 chapter_data = {
-#                     "novela_id": novel_id,
-#                     "nombre": chapter_name,
-#                     "url": chapter_url,
-#                     "created_at": datetime.now(),
-#                     "updated_at": datetime.now()
-#                 }
-#                 coleccion_app_capitulo.insert_one(chapter_data)
-#         pagination_driver = driver.find_element(By.XPATH, '//*[@id="chpagedlist"]/div/div[2]/div/ul')
-#         li_elements = pagination_driver.find_elements(By.TAG_NAME, 'li')
-#         for li in li_elements:
-#             if str(li.text).isdigit():
-#                 if int(li.text)==pag:
-#                     li.find_element(By.TAG_NAME,'a').click()
-#                     break
-#         time.sleep(2)
-#         soup_novel = bs(driver.page_source, 'html.parser')
-
-# # =========================
-
-# client = MongoClient('mongodb://192.168.1.11:27017/')
-
-# # Selecciona la base de datos
-# db = client['recopilarnovelas']
-# coleccion_app_novela = db['app_novela']
-# coleccion_app_capitulo = db['app_capitulo']
-# sitio_id='67de23f6e131d527f2995103'
-# existing_novels_names = existing_novel()
-
-# url = 'https://www.fanmtl.com/novel/trainer-i-build-a-home-on-the-back-of-a-xuanwu.html'
-# options = webdriver.ChromeOptions()
-# options.add_argument('--disable-blink-features=AutomationControlled')
-# options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
-# driver = uc.Chrome(options=options, service = Service(executable_path=ChromeDriverManager().install()))
-# driver.get(url)
-# html = driver.page_source
-# soup = bs(html, 'html.parser')
-
-# try:
-#     novel_info = soup.find('div', class_='novel-info')
-#     name = str(novel_info.find('div', class_='main-head').find('h1', class_='novel-title').getText()).upper().strip().rstrip()
-    
-#     if name in existing_novels_names.keys():
-#         novel_id = existing_novels_names[name]
-#     else:
-#         novel_data = get_novel_data(driver, novel_info, url)
-#         novel_id = str(coleccion_app_novela.insert_one(novel_data).inserted_id)
-#         existing_novels_names = existing_novel()
-
-#     try:
-#         get_chapter_data(driver, novel_id)
-#     except Exception as e:
-#         print(f"Error al procesar la novela '{name}': {e}")
-# except Exception as e:
-#     print(e)
-# finally:
-#     driver.quit()
+if __name__ == "__main__":
+    ft.app(target=main)

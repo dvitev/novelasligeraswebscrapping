@@ -1,4 +1,3 @@
-
 import base64
 import os
 import flet as ft
@@ -39,6 +38,7 @@ COLLECTION_SITIOS = "app_sitio"
 COLLECTION_NOVELAS = "app_novela"
 COLLECTION_CAPITULOS = "app_capitulo"
 COLLECTION_CONTENIDO_CAPITULOS = 'app_contenidocapitulo'
+
 # Initialize MongoDB client
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
@@ -46,9 +46,11 @@ collection_sitios = db[COLLECTION_SITIOS]
 collection_novelas = db[COLLECTION_NOVELAS]
 collection_capitulos = db[COLLECTION_CAPITULOS]
 collection_contenido_capitulos = db[COLLECTION_CONTENIDO_CAPITULOS]
+
 # IDs de Sitios (Constantes para mejorar mantenibilidad)
 FANMTL_SITIO_ID = '67de23f6e131d527f2995103'
 TUNOVELA_LIGERA_SITIO_ID = '680ecb15e1ce8081ecb8b4d1'
+
 # --- Límites de caracteres para servicios de traducción (ajusta según sea necesario) ---
 CHARACTER_LIMITS = {
     'google': 5000, # Ejemplo, verifica el límite real
@@ -56,11 +58,13 @@ CHARACTER_LIMITS = {
     'bing': 5000, # Ejemplo, verifica el límite real
     # Agrega límites para otros servicios si los usas (ej. deepl, libre)
 }
+
 # --- Additional Constants ---
 DEFAULT_SLEEP_TIME = 3
-PARAGRAPH_DELIMITER = "\n---PARAGRAPH_DELIMITER---\n"
+PARAGRAPH_DELIMITER = "---PARAGRAPH_DELIMITER---"
 TEMP_IMAGE_FILENAME = "imagen_descargada.jpg"
 PINGO_FONT_PATH = os.path.join(os.getcwd(), 'recopilarnovelasdjango', 'static', 'fonts', 'Poppins-Regular.ttf')
+
 # --- Constantes de Paginación ---
 NOVELAS_POR_PAGINA = 20 # Ajusta este número según el rendimiento deseado
 
@@ -89,11 +93,12 @@ def create_dark_theme():
         appbar_theme=ft.AppBarTheme(
             color=ft.Colors.WHITE, # Color del texto del AppBar
         ),
+        # Corrección: elevated_button_theme recibe un ElevatedButtonTheme
+        # y se le pasa un ft.TextStyle al argumento text_style
         elevated_button_theme=ft.ElevatedButtonTheme(
-            text_style=ft.ButtonStyle(
-                color=ft.Colors.WHITE, # Texto blanco en botones
-                # bgcolor se define en los botones individuales
-            )
+            text_style=ft.TextStyle(color=ft.Colors.WHITE) # <-- Argumento correcto y tipo correcto
+            # Puedes añadir otros estilos predeterminados aquí si es necesario
+            # Por ejemplo: bgcolor=ft.Colors.GREY_700
         ),
         card_theme=ft.CardTheme(
             color=ft.Colors.GREY_800, # Color de fondo de las tarjetas
@@ -105,36 +110,32 @@ def create_dark_theme():
         )
     )
 
+
 class AppState:
     loading = False
 
 class PDF(FPDF):
     def header(self):
         pass
-
     def footer(self):
         self.set_y(-15)
         self.set_font('Poppins-Regular', size=12)
         # Nota: {{nb}} será reemplazado por alias_nb_pages() en crearpdf
         self.cell(0, 10, f"Pagina {self.page_no()} de {{nb}}", align="C")
-
     def chapter_title(self, label):
         self.set_font('Poppins-Regular', size=12)
         self.set_fill_color(200, 220, 255)
         self.cell(0, 6, f"{label}", new_x="LMARGIN",
                 new_y="NEXT", align="L", fill=True)
         self.ln(4)
-
     def chapter_body(self, texto):
         self.set_font('Poppins-Regular', size=12)
         # Printing justified text:
         self.write_html(texto)
         # Performing a line break:
         self.ln()
-
     def add_section(self, title):
         self.start_section(title)
-
     def print_chapter(self, title, texto):
         self.add_page()
         # self.start_section(title)
@@ -147,14 +148,19 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK # Activar modo oscuro
     # Aplicar tema oscuro personalizado
     page.theme = create_dark_theme()
+
     filepicker = ft.FilePicker()
     save_file_path = ft.Text()
     page.overlay.append(filepicker)
+
     contar_capitulos = 0
     lista_capitulos = []
     ids_contenido_capitulo = []
+
     txt_number = ft.Text(value="0", text_align=ft.TextAlign.CENTER, size=16, weight=ft.FontWeight.BOLD)
+
     # --- Botones con estilo mejorado para tema oscuro ---
+    # Apply responsive padding and shape styles here
     btn_epub=ft.ElevatedButton(
         "Epub",
         bgcolor=ft.Colors.GREEN_700, # Verde más oscuro para contraste
@@ -162,7 +168,12 @@ def main(page: ft.Page):
         expand=True,
         icon=ft.Icons.BOOK,
         icon_color=ft.Colors.WHITE,
-        tooltip="Generar archivo EPUB"
+        tooltip="Generar archivo EPUB",
+        # Use ButtonStyle for responsive shape and padding
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=50), # Circular shape on small screens
+            padding=ft.Padding(10, 15, 10, 15) # Consistent internal spacing
+        )
     )
     btn_pdf=ft.ElevatedButton(
         "PDF",
@@ -171,7 +182,12 @@ def main(page: ft.Page):
         expand=True,
         icon=ft.Icons.PICTURE_AS_PDF,
         icon_color=ft.Colors.WHITE,
-        tooltip="Generar archivo PDF"
+        tooltip="Generar archivo PDF",
+        # Use ButtonStyle for responsive shape and padding
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=50), # Circular shape on small screens
+            padding=ft.Padding(10, 15, 10, 15) # Consistent internal spacing
+        )
     )
     btn_procesar=ft.ElevatedButton(
         "Procesar",
@@ -180,7 +196,12 @@ def main(page: ft.Page):
         expand=True,
         icon=ft.Icons.LAUNCH,
         icon_color=ft.Colors.WHITE,
-        tooltip="Obtener capítulos faltantes"
+        tooltip="Obtener capítulos faltantes",
+        # Use ButtonStyle for responsive shape and padding
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=50), # Circular shape on small screens
+            padding=ft.Padding(10, 15, 10, 15) # Consistent internal spacing
+        )
     )
 
     def traducir(texto: str) -> str:
@@ -206,6 +227,7 @@ def main(page: ft.Page):
         # Determinar el límite (usamos el más restrictivo o uno por defecto)
         # En una implementación más robusta, podrías probar con el servicio específico
         limit = min(CHARACTER_LIMITS.values(), default=4500)
+
         if len(texto) <= limit:
             # Si el texto está dentro del límite, traducir directamente
             return traducir(texto)
@@ -216,6 +238,7 @@ def main(page: ft.Page):
             partes = texto.split(delimitador)
             partes_traducidas = []
             parte_actual = ""
+
             for parte in partes:
                 # Añadir el delimitador de vuelta para la construcción (excepto la primera)
                 parte_con_delimitador = (delimitador if parte_actual else "") + parte
@@ -227,9 +250,11 @@ def main(page: ft.Page):
                 else:
                     # Si no, añadir la parte a la parte_actual
                     parte_actual += parte_con_delimitador
+
             # Traducir la última parte acumulada
             if parte_actual:
                 partes_traducidas.append(traducir(parte_actual))
+
             # Unir todas las partes traducidas
             return "".join(partes_traducidas)
 
@@ -245,6 +270,7 @@ def main(page: ft.Page):
         bgcolor=ft.Colors.GREY_800, # Fondo oscuro para el banner
         surface_tint_color=ft.Colors.DEEP_PURPLE_300 # Tinte del tema primario
     )
+
     progress_ring = ft.ProgressRing(visible=False, stroke_width=5, color=ft.Colors.DEEP_PURPLE_300) # Color del anillo
 
     def open_banner(fondo, icono, contenido):
@@ -279,7 +305,7 @@ def main(page: ft.Page):
                     texto_capitulo = ''.join([f"<p>{texto}</p>" for texto in textos_originales])
             else:
                 texto_capitulo = "<p>(Sin contenido)</p>"
-            
+
             _id = enviar_contenido_capitulo(novela_id, capitulo_id, texto_capitulo)
             logger.info(f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}")
             open_banner(
@@ -326,17 +352,21 @@ def main(page: ft.Page):
                 ]
             )
             return # Salir si no se encuentra la novela
+
         sitio_id = novela_doc.get('sitio_id')
+
         # FANMTL.com
         if FANMTL_SITIO_ID == sitio_id: # Usar constante
             time.sleep(DEFAULT_SLEEP_TIME)
             soup = bs(driver.page_source, 'html.parser')
             _id = _extraer_y_guardar_contenido(soup, 'chapter-content', novela_id, capitulo_id, traducir_flag=True, delimitador=PARAGRAPH_DELIMITER)
+
         # tunovelaligera.com
         elif TUNOVELA_LIGERA_SITIO_ID == sitio_id: # Usar elif y constante
             time.sleep(DEFAULT_SLEEP_TIME)
             soup = bs(driver.page_source, 'html.parser')
             _id = _extraer_y_guardar_contenido(soup, 'entry-content_wrap', novela_id, capitulo_id, traducir_flag=False, delimitador=PARAGRAPH_DELIMITER)
+
         else:
             logger.warning("Validar sitio para manejar driver no es FANMTL.com o tunovelaligera.com")
             open_banner(
@@ -362,15 +392,18 @@ def main(page: ft.Page):
             nombre_archivo = TEMP_IMAGE_FILENAME
         # Ruta completa de destino
         ruta_destino = os.path.join(temp_dir, nombre_archivo)
+
         try:
             # Descargar la imagen
             respuesta = requests.get(url, stream=True, timeout=30) # Añadir timeout
             respuesta.raise_for_status()  # Verificar errores HTTP
+
             # Guardar la imagen
             with open(ruta_destino, 'wb') as archivo:
                 for chunk in respuesta.iter_content(chunk_size=8192):
                     if chunk:
                         archivo.write(chunk)
+
             logger.info(f"Imagen descargada en: {ruta_destino}")
             return ruta_destino
         except requests.exceptions.RequestException as e:
@@ -389,32 +422,40 @@ def main(page: ft.Page):
         btn_epub.disabled = True
         btn_pdf.disabled = True
         page.update()
+
         try:
             contenido_capitulos_novela = {
-                str(x['capitulo_id']): x['texto'] 
+                str(x['capitulo_id']): x['texto']
                 for x in collection_contenido_capitulos.find(
                     {'novela_id': str(novela['_id'])}
                 ).sort('created_at', 1) # Corrección: Usar argumentos separados
             }
+
             # Descargar portada
             portada = descargar_imagen(novela['imagen_url'])
             if not portada or not os.path.exists(portada):
                 raise Exception("Error al obtener la portada")
+
             with open(portada, 'rb') as img_file:
                 base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
+
             book = epub.EpubBook()
+
             # Metadatos
             book.set_identifier(str(novela['_id']))
             book.set_title(novela['nombre'])
             book.set_language('es')
             book.add_author(novela['autor'])
+
             # Añadir portada
             with open(portada, 'rb') as f:
                 book.set_cover('cover.jpg', f.read())
+
             # --- Sección de Introducción Mejorada ---
             # Traducir con respaldo (solo para nombre y sinopsis, como en PDF)
             nombre_traducido = traducir(novela['nombre']) or novela['nombre']
             sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
+
             # Crear contenido HTML para la introducción, incluyendo todos los detalles
             etiquetas = {
                 '_id': 'Novela ID',
@@ -428,9 +469,10 @@ def main(page: ft.Page):
                 'created_at': 'Fecha Creación en Base de Datos',
                 'updated_at': 'Fecha Modificación en Base de Datos',
             }
+
             intro_html = f"""
             <h1>{nombre_traducido}</h1>
-            <img src="image/jpeg;base64,{base64_cover}" 
+            <img src="image/jpeg;base64,{base64_cover}"
                 style="width: 300px; height: auto; margin: 0 auto; display: block;">
             <h2>Detalles de la Novela</h2>
             <table style="width:100%; border-collapse: collapse;">
@@ -446,6 +488,7 @@ def main(page: ft.Page):
             <tr><td style="font-weight:bold;">{etiquetas['updated_at']}</td><td>{novela.get('updated_at', 'N/A').strftime('%Y-%m-%d %H:%M:%S') if isinstance(novela.get('updated_at'), datetime) else novela.get('updated_at', 'N/A')}</td></tr>
             </table>
             """
+
             intro = epub.EpubHtml(
                 title='Introducción',
                 file_name='intro.xhtml',
@@ -453,7 +496,9 @@ def main(page: ft.Page):
             )
             intro.content = intro_html
             book.add_item(intro)
+
             # --- Fin de la Introducción Mejorada ---
+
             # Capítulos
             chapters = [intro] # Incluir la intro en el spine y TOC
             zfill_length = len(str(len(capitulos)))
@@ -461,6 +506,7 @@ def main(page: ft.Page):
                 nombre_capitulo = capitulo['nombre']
                 # Obtener contenido con valor por defecto
                 contenido = contenido_capitulos_novela.get(str(capitulo['_id']), '')
+
                 chapter = epub.EpubHtml(
                     title=nombre_capitulo,
                     file_name=f'cap_{idx:0{zfill_length}}.xhtml',
@@ -469,6 +515,7 @@ def main(page: ft.Page):
                 chapter.content = f"<h1>{nombre_capitulo}</h1>{contenido}"
                 book.add_item(chapter)
                 chapters.append(chapter)
+
                 open_banner(
                     ft.Colors.GREEN_900, # Fondo más oscuro para éxito
                     ft.Icon(ft.Icons.CHECK, color=ft.Colors.GREEN_300, size=40),
@@ -481,6 +528,7 @@ def main(page: ft.Page):
                     ]
                 )
                 page.update()
+
             # Capítulo de Notas
             notas = epub.EpubHtml(
                 title='Notas',
@@ -489,6 +537,7 @@ def main(page: ft.Page):
             )
             notas.content = "<h1>Notas</h1><p>Notas adicionales...</p>"
             book.add_item(notas)
+
             # Estructura del libro
             book.toc = (
                 epub.Link('intro.xhtml', 'Introducción', 'intro'),
@@ -497,9 +546,11 @@ def main(page: ft.Page):
             )
             # Spine correcto (intro + capítulos + notas)
             book.spine = chapters + [notas] # chapters ya incluye intro
+
             # Añadir componentes estándar
             book.add_item(epub.EpubNcx())
             book.add_item(epub.EpubNav())
+
             # CSS (mejorar compatibilidad)
             style = """
             body { font-family: serif; }
@@ -514,8 +565,10 @@ def main(page: ft.Page):
                 content=style
             )
             book.add_item(css)
+
             # Guardar
             nombre_archivo = sanitizar_nombre(novela['nombre']) + '.epub'
+
             def save_file_result(e: ft.FilePickerResultEvent):
                 try:
                     # Verificar si el usuario canceló
@@ -527,6 +580,7 @@ def main(page: ft.Page):
                             [ft.Text(value="Operación cancelada", color=ft.Colors.WHITE, size=14)] # Texto blanco
                         )
                         return
+
                     # Guardar el EPUB en la ruta seleccionada
                     epub.write_epub(e.path, book, {})
                     logger.info(f"EPUB guardado en: {e.path}")
@@ -534,7 +588,7 @@ def main(page: ft.Page):
                     open_banner(
                         ft.Colors.GREEN_900, # Fondo más oscuro para éxito
                         ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_300, size=40),
-                        [ft.Text(value=f"EPUB guardado en:\n{e.path}", color=ft.Colors.WHITE, size=14)] # Texto blanco
+                        [ft.Text(value=f"EPUB guardado en: {e.path}", color=ft.Colors.WHITE, size=14)] # Texto blanco
                     )
                 except PermissionError as pe:
                     logger.error(f"Error de permisos al guardar EPUB: {pe}")
@@ -558,9 +612,11 @@ def main(page: ft.Page):
                             logger.info("Archivo temporal de portada eliminado.")
                         except OSError as oe:
                             logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
+
             # Dentro de tu función crearepub:
             filepicker.on_result = save_file_result
             filepicker.save_file(file_name=nombre_archivo, allowed_extensions=["epub"])
+
         except Exception as e:
             logger.error(f"Error en crearepub: {str(e)}")
             open_banner(
@@ -585,6 +641,7 @@ def main(page: ft.Page):
         btn_epub.disabled = True
         btn_pdf.disabled = True
         page.update()
+
         try:
             # Obtener contenido de la base de datos
             contenido_capitulos_novela = {
@@ -593,36 +650,45 @@ def main(page: ft.Page):
                     {'novela_id': str(novela['_id'])}
                 ).sort('created_at', 1) # Corrección: Usar argumentos separados
             }
+
             # Descargar portada
             portada = descargar_imagen(novela['imagen_url'])
             if not portada or not os.path.exists(portada):
                 raise Exception("Error al obtener la portada")
+
             # Convertir imagen a base64
             with open(portada, 'rb') as img_file:
                 base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
+
             # Traducciones
             nombre_traducido = traducir(novela['nombre']) or novela['nombre']
             sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
+
             pdf = PDF(orientation='P', unit='mm', format='A4')
             pdf.add_font('Poppins-Regular', '', PINGO_FONT_PATH, uni=True)
             pdf.set_font('Poppins-Regular', size=12)
             pdf.set_title(nombre_traducido)
             pdf.set_author(novela['autor'])
             pdf.set_creator('David Eliceo Vite Vergara')
+
             # Habilitar reemplazo de {{nb}} en el pie de página
             pdf.alias_nb_pages()
+
             pdf.add_page()
             pdf.chapter_title(nombre_traducido)
             pdf.image(name=portada, x=pdf.epw / 3, w=75)
             pdf.write_html(text="<h5>Resumen:</h5>")
             pdf.write_html(text=f"<p>{sinopsis_traducida}</p>")
             pdf.write(text=f"Url de Novela: {novela['url']}")
+
             # Añadir capítulos
             for idx, capitulo in enumerate(capitulos, 1):
                 capitulo_id = str(capitulo['_id'])
                 nombre_capitulo = capitulo['nombre']
                 contenido = contenido_capitulos_novela.get(capitulo_id, '')
+
                 pdf.print_chapter(f"{nombre_capitulo}", f"{contenido}")
+
                 # Actualizar UI
                 open_banner(
                     ft.Colors.GREEN_900, # Fondo más oscuro para éxito
@@ -630,8 +696,10 @@ def main(page: ft.Page):
                     [ft.Text(value=f"{nombre_capitulo} añadido al PDF", color=ft.Colors.WHITE, size=14)] # Texto blanco
                 )
                 page.update()
+
             # Guardar archivo
             nombre_archivo = sanitizar_nombre(novela['nombre']) + '.pdf'
+
             def save_file_result(e: ft.FilePickerResultEvent):
                 try:
                     if e.path is None:
@@ -642,13 +710,15 @@ def main(page: ft.Page):
                             [ft.Text(value="Operación cancelada", color=ft.Colors.WHITE, size=14)] # Texto blanco
                         )
                         return
+
                     with open(e.path, 'wb') as filepdf:
                         pdf.output(filepdf)
+
                     logger.info(f"PDF guardado en: {e.path}")
                     open_banner(
                         ft.Colors.GREEN_900, # Fondo más oscuro para éxito
                         ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_300, size=40),
-                        [ft.Text(value=f"PDF guardado en:\n{e.path}", color=ft.Colors.WHITE, size=14)] # Texto blanco
+                        [ft.Text(value=f"PDF guardado en: {e.path}", color=ft.Colors.WHITE, size=14)] # Texto blanco
                     )
                 except PermissionError as pe:
                     logger.error(f"Error de permisos al guardar PDF: {pe}")
@@ -672,8 +742,10 @@ def main(page: ft.Page):
                             logger.info("Archivo temporal de portada eliminado.")
                         except OSError as oe:
                             logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
+
             filepicker.on_result = save_file_result
             filepicker.save_file(file_name=nombre_archivo, allowed_extensions=["pdf"])
+
         except Exception as e:
             logger.error(f"Error en crearpdf: {str(e)}")
             open_banner(
@@ -779,6 +851,7 @@ def main(page: ft.Page):
         global ids_contenido_capitulo # Asegurarse de usar la global
         progress_ring.visible = True
         page.update()
+
         urls_capitulos = load_ids_urls_capitulos_novela(novela_id)
         driver = instanciar_driver()
         try: # Añadir try/finally para asegurar driver.quit()
@@ -845,12 +918,13 @@ def main(page: ft.Page):
 
     def create_sitio_button(sitio):
         # --- Botón con estilo mejorado para tema oscuro ---
+        # Apply responsive padding and shape styles here
         return ft.ElevatedButton(
             sitio['nombre'],
             on_click=lambda e, id=sitio['_id']: navigate_to_detail(id),
             style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=10),
-                padding=ft.Padding(10, 15, 10, 15) # Añadir padding para mejor toque
+                shape=ft.RoundedRectangleBorder(radius=50), # Circular shape on small screens
+                padding=ft.Padding(10, 15, 10, 15) # Consistent internal spacing
             ),
             # Añadir tooltip
             tooltip=f"Ver novelas de {sitio['nombre']}"
@@ -890,11 +964,12 @@ def main(page: ft.Page):
             "/",
             [
                 ft.AppBar(title=ft.Text("Sitios de Novelas"), bgcolor=ft.Colors.SURFACE), # Usar color del tema
-                # --- GridView con mejor espaciado ---
+                # --- GridView with responsive max_extent ---
                 ft.GridView(
                     expand=True,
                     runs_count=5,
-                    max_extent=180, # Ajustar tamaño máximo de tarjeta
+                    # Use max_extent for responsive card sizing
+                    max_extent=200, # Adjust this value based on desired card size on larger screens
                     spacing=15, # Espaciado horizontal
                     run_spacing=15, # Espaciado vertical
                     controls=[create_sitio_button(sitio) for sitio in sitios]
@@ -907,9 +982,7 @@ def main(page: ft.Page):
     def create_detail_view(sitio_id, pagina=1): # Añadir parámetro de página
         # show_loading() # Opcional: mostrar indicador de carga específico para esta vista
         logger.info(f"Cargando vista de sitio {sitio_id}, página {pagina}")
-
         sitio, novelas_pagina, total_novelas = load_sitio_details_paginado(sitio_id, pagina, NOVELAS_POR_PAGINA)
-
         if not sitio:
             return ft.View(
                 f"/sitio/{sitio_id}",
@@ -944,10 +1017,8 @@ def main(page: ft.Page):
                 on_click=lambda _: ir_a_pagina(pagina - 1) if pagina > 1 else None,
                 tooltip="Página Anterior"
             )
-
             # Texto de página
             txt_pagina = ft.Text(f"Página {pagina} de {total_paginas}", size=14, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE)
-
             # Botón Siguiente
             btn_siguiente = ft.IconButton(
                 icon=ft.Icons.ARROW_FORWARD,
@@ -955,7 +1026,6 @@ def main(page: ft.Page):
                 on_click=lambda _: ir_a_pagina(pagina + 1) if pagina < total_paginas else None,
                 tooltip="Página Siguiente"
             )
-
             # Selector de página (opcional, más avanzado)
             # dropdown_paginas = ft.Dropdown(
             #     options=[ft.dropdown.Option(str(i)) for i in range(1, total_paginas + 1)],
@@ -963,7 +1033,6 @@ def main(page: ft.Page):
             #     on_change=lambda e: ir_a_pagina(int(e.control.value)),
             #     width=100
             # )
-
             controles_paginacion = [
                 ft.Row(
                     controls=[btn_anterior, txt_pagina, btn_siguiente], # Agregar dropdown_paginas si se usa
@@ -1002,7 +1071,8 @@ def main(page: ft.Page):
                 ft.GridView(
                     expand=True,
                     runs_count=5,
-                    max_extent=180,
+                    # Use max_extent for responsive card sizing
+                    max_extent=200, # Adjust this value based on desired card size on larger screens
                     spacing=10,
                     run_spacing=15,
                     child_aspect_ratio=0.65,
@@ -1037,9 +1107,11 @@ def main(page: ft.Page):
                     ft.Text("Sitio no encontrado", size=20)
                 ]
             )
+
         ids_contenido_capitulo = load_ids_contenido_capitulos_novela(novela_id) # Actualizar la global
         contar_capitulos = len(ids_contenido_capitulo)
         txt_number.value=str(contar_capitulos)
+
         # --- Lista de capítulos con ListTile para mejor presentación ---
         lista_capitulos=[
             ft.ListTile(
@@ -1054,16 +1126,20 @@ def main(page: ft.Page):
             )
             for capitulo in capitulos
         ]
+
         btn_epub.on_click=lambda _: crearepub(novela, capitulos)
         btn_epub.disabled=False if len(capitulos) == contar_capitulos else True
         btn_pdf.on_click=lambda _: crearpdf(novela, capitulos)
         btn_pdf.disabled=False if len(capitulos) == contar_capitulos else True
+
         cap_faltantes = comparar_diccionarios([str(x['_id']) for x in capitulos], ids_contenido_capitulo)
         btn_procesar.disabled= not (len(cap_faltantes) > 0) # Corrección: lógica más clara
         btn_procesar.on_click=lambda _: obtener_capitulos_webscrapping(cap_faltantes, novela_id)
+
         # IDs de Sitios (Constantes para mejorar mantenibilidad)
         FANMTL_SITIO_ID = '67de23f6e131d527f2995103'
         TUNOVELA_LIGERA_SITIO_ID = '680ecb15e1ce8081ecb8b4d1'
+
         etiquetas = {
             '_id': 'Novela ID',
             'sitio_id':'Sitio ID',
@@ -1077,6 +1153,7 @@ def main(page: ft.Page):
             'created_at': 'Fecha Creacion en Base de Datos',
             'updated_at': 'Fecha Modificacion en Base de Datos',
         }
+
         # --- Vista de detalles con mejor organización y estilo ---
         return ft.View(
             f"/novela/{novela_id}",
@@ -1121,7 +1198,7 @@ def main(page: ft.Page):
                                             ft.DataCell(ft.Text(etiquetas[key], size=12, color=ft.Colors.GREY_300)), # Texto más claro
                                             ft.DataCell(ft.Text(f"{novela[key]}", size=12, selectable=True, color=ft.Colors.WHITE)) # Texto blanco y seleccionable
                                         ])
-                                        for key in novela.keys() 
+                                        for key in novela.keys()
                                         if key not in ['imagen_url','sitio_id','created_at', 'updated_at', '_id'] # Excluir campos no deseados
                                     ],
                                     column_spacing=20, # Espacio entre columnas
@@ -1153,15 +1230,13 @@ def main(page: ft.Page):
                                 ft.Text(str(len(capitulos)), size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE), # Texto blanco
                             ], alignment=ft.MainAxisAlignment.CENTER),
                             ft.Divider(height=10, thickness=0), # Espacio pequeño
-                            ft.Row([
-                                btn_epub,
-                            ], expand=True),
-                            ft.Row([
-                                btn_pdf,
-                            ], expand=True),
-                            ft.Row([
-                                btn_procesar,
-                            ], expand=True),
+                            # Use ResponsiveRow for buttons to allow horizontal layout on larger screens
+                            # and vertical stacking on smaller ones
+                            ft.ResponsiveRow([
+                                ft.Column([btn_epub], col={"xs": 12, "sm": 12, "md": 4}), # Full width on xs, sm, 1/3 on md
+                                ft.Column([btn_pdf], col={"xs": 12, "sm": 12, "md": 4}),
+                                ft.Column([btn_procesar], col={"xs": 12, "sm": 12, "md": 4}),
+                            ], spacing=5, run_spacing=5), # Consistent spacing
                             ft.Divider(height=15, thickness=2, color=ft.Colors.OUTLINE_VARIANT),
                             # --- Contenedor para el ProgressRing centrado ---
                             ft.Container(
@@ -1214,7 +1289,6 @@ def main(page: ft.Page):
                     query_params = {}
 
             pagina = int(query_params.get("pagina", 1)) # Obtener página, por defecto 1
-
             if len(parts) > 2 and parts[1] == "sitio":
                 # Pasar el número de página a create_detail_view
                 page.views.append(create_detail_view(parts[2], pagina=pagina))
