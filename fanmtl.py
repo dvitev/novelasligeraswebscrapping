@@ -193,7 +193,7 @@ def procesar_capitulos(driver, url_novela):
         # Inicializar variables para el bucle de paginación
         pagina_actual = 1
         total_paginas_procesadas = 0
-        max_paginas = 50 # Límite de seguridad para evitar bucles infinitos
+        max_paginas = 5000 # Límite de seguridad para evitar bucles infinitos
 
         while total_paginas_procesadas < max_paginas:
             logger.debug(f"Procesando página de capítulos {pagina_actual} (Intento de scraping #{total_paginas_procesadas + 1})")
@@ -346,7 +346,7 @@ class FanmtlScraperAutomatico:
         self.list_url = f"{self.base_url}/list/all/all-onclick-0.html"
         self.current_page = 1
         # Lista de géneros a excluir
-        self.generos_excluidos = {'Josei', 'LGBT', 'Shoujo Ai', 'Shounen Ai', 'Yaoi', 'Yuri', 'BL', 'BG', 'GL'}
+        self.generos_excluidos = {'LGBT', 'Shoujo Ai', 'Shounen Ai', 'Yaoi', 'Yuri', 'BL', 'BG', 'GL'}
 
     def get_total_pages(self):
         """Obtiene el número total de páginas de la lista de novelas."""
