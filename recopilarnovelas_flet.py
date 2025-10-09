@@ -289,7 +289,7 @@ def main(page: ft.Page):
         }
         return str(collection_contenido_capitulos.insert_one(novel_data).inserted_id)
 
-    def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_id, traducir_flag=False, delimitador=PARAGRAPH_DELIMITER):
+    def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_id, traducir_flag=False, delimitador='--- párrafo_delimiter ---'):
         """Función auxiliar para extraer y guardar contenido de capítulos."""
         div_contenido = soup.find('div', class_=selector_css)
         if div_contenido:
