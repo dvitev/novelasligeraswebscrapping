@@ -23,12 +23,23 @@ import re
 import json
 import logging
 from urllib.parse import urljoin, urlparse
+from dotenv import load_dotenv # Añadir import para python-dotenv
+
+# Cargar variables de entorno desde el archivo .env
+load_dotenv()
 
 # Configuración inicial
 DetectorFactory.seed = 0
 MONGO_URI = 'mongodb://192.168.1.11:27017/'
 DB_NAME = 'recopilarnovelas'
 SITIO_ID = '67de23f6e131d527f2995103'
+
+# Leer la variable de entorno INDICE_CONTINUACION
+INDICE_CONTINUACION = int(os.getenv('INDICE_CONTINUACION', 0)) # Valor por defecto 0 si no está definido
+# Configuración del logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+logger.info(f"Índice de continuación leído desde .env: {INDICE_CONTINUACION}")
 
 # Cliente MongoDB
 client = MongoClient(MONGO_URI)
@@ -496,12 +507,23 @@ class FanmtlScraperAutomatico:
         # 4. Ahora, recorrer cada URL de novela obtenida y aplicar las funciones originales
         total_novels = len(all_novel_urls)
         processed_count = 0
-        for i, novel_url in enumerate(all_novel_urls):
-            processed_count += 1
+        
+        # --- Modificación: Procesar desde el índice de continuación ---
+        logger.info(f"Comenzando procesamiento desde el índice {INDICE_CONTINUACION}")
+        novelas_a_procesar = all_novel_urls[INDICE_CONTINUACION:]
+        logger.info(f"Total de novelas a procesar a partir del índice {INDICE_CONTINUACION}: {len(novelas_a_procesar)}")
+        
+        # Calcular el índice global real para mostrar en el log
+        start_global_index = INDICE_CONTINUACION
+        
+        for i, novel_url in enumerate(novelas_a_procesar):
+            current_global_index = start_global_index + i
+            processed_count = current_global_index + 1 # Para mostrar en UI como "X de Y"
+            
             if novel_url not in urls_novelas:
-                logger.info(f"({processed_count}/{total_novels}) Procesando novela individual: {novel_url}")
+                logger.info(f"({processed_count}/{total_novels}) Procesando novela individual (índice global {current_global_index}): {novel_url}")
                 self.page_pubsub.send_all({
-                    "status": f"({processed_count}/{total_novels}) Procesando novela: {novel_url}",
+                    "status": f"({processed_count}/{total_novels}) Procesando novela (índice {current_global_index}): {novel_url}",
                     "color": ft.Colors.BLUE_600,
                     "progress": True
                 })
@@ -585,6 +607,7 @@ class FanmtlScraperAutomatico:
                                 "progress": True
                             })
                     else:
+                        logger.info(f"La novela '{datos_detalle['titulo']}' contiene un género excluido y será ignorada.")
                         print(f"La novela contiene uno de los siguientes géneros excluidos y será ignorada: {', '.join(self.generos_excluidos)}")
                     # Pequeña pausa para no sobrecargar el servidor
                     time.sleep(1)
