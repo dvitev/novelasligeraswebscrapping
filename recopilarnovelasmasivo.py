@@ -241,136 +241,6 @@ def sanitizar_nombre(nombre):
 
 def crearepub(novela, capitulos):
     try:
-        contenido_capitulos_novela = {
-            str(x['capitulo_id']): x['texto']
-            for x in collection_contenido_capitulos.find(
-                {'novela_id': str(novela['_id'])}
-            ).sort('created_at', 1) # Corrección: Usar argumentos separados
-        }
-
-        # Descargar portada
-        portada = descargar_imagen(novela['imagen_url'])
-        if not portada or not os.path.exists(portada):
-            raise Exception("Error al obtener la portada")
-
-        with open(portada, 'rb') as img_file:
-            base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
-
-        book = epub.EpubBook()
-
-        # Metadatos
-        book.set_identifier(str(novela['_id']))
-        book.set_title(novela['nombre'])
-        book.set_language('es')
-        book.add_author(novela['autor'])
-
-        # Añadir portada
-        with open(portada, 'rb') as f:
-            book.set_cover('cover.jpg', f.read())
-
-        # --- Sección de Introducción Mejorada ---
-        # Traducir con respaldo (solo para nombre y sinopsis, como en PDF)
-        nombre_traducido = traducir(novela['nombre']) or novela['nombre']
-        sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
-
-        # Crear contenido HTML para la introducción, incluyendo todos los detalles
-        etiquetas = {
-            '_id': 'Novela ID',
-            'nombre': 'Nombre Novela', # Usamos nombre_traducido
-            'sinopsis': 'Sinopsis Novela', # Usamos sinopsis_traducida
-            'autor': 'Autor Novela',
-            'genero': 'Géneros Novela',
-            'status': 'Status Novela',
-            'url': 'Url Novela',
-            'imagen_url': 'Url Imagen Novela',
-            'created_at': 'Fecha Creación en Base de Datos',
-            'updated_at': 'Fecha Modificación en Base de Datos',
-        }
-
-        intro_html = f"""
-        <h1>{nombre_traducido}</h1>
-        <img src="image/jpeg;base64,{base64_cover}"
-            style="width: 300px; height: auto; margin: 0 auto; display: block;">
-        <h2>Detalles de la Novela</h2>
-        <table style="width:100%; border-collapse: collapse;">
-        <tr><td style="font-weight:bold;">{etiquetas['_id']}</td><td>{novela.get('_id', 'N/A')}</td></tr>
-        <tr><td style="font-weight:bold;">{etiquetas['nombre']}</td><td>{nombre_traducido}</td></tr>
-        <tr><td style="font-weight:bold; vertical-align:top;">{etiquetas['sinopsis']}</td><td>{sinopsis_traducida}</td></tr>
-        <tr><td style="font-weight:bold;">{etiquetas['autor']}</td><td>{novela.get('autor', 'N/A')}</td></tr>
-        <tr><td style="font-weight:bold;">{etiquetas['genero']}</td><td>{novela.get('genero', 'N/A')}</td></tr>
-        <tr><td style="font-weight:bold;">{etiquetas['status']}</td><td>{novela.get('status', 'N/A')}</td></tr>
-        <tr><td style="font-weight:bold;">{etiquetas['url']}</td><td><a href="{novela.get('url', '#')}">{novela.get('url', 'N/A')}</a></td></tr>
-        <tr><td style="font-weight:bold;">{etiquetas['imagen_url']}</td><td><a href="{novela.get('imagen_url', '#')}">Ver Imagen</a></td></tr>
-        <tr><td style="font-weight:bold;">{etiquetas['created_at']}</td><td>{novela.get('created_at', 'N/A').strftime('%Y-%m-%d %H:%M:%S') if isinstance(novela.get('created_at'), datetime) else novela.get('created_at', 'N/A')}</td></tr>
-        <tr><td style="font-weight:bold;">{etiquetas['updated_at']}</td><td>{novela.get('updated_at', 'N/A').strftime('%Y-%m-%d %H:%M:%S') if isinstance(novela.get('updated_at'), datetime) else novela.get('updated_at', 'N/A')}</td></tr>
-        </table>
-        """
-
-        intro = epub.EpubHtml(
-            title='Introducción',
-            file_name='intro.xhtml',
-            lang='es',
-        )
-        intro.content = intro_html
-        book.add_item(intro)
-
-        # --- Fin de la Introducción Mejorada ---
-
-        # Capítulos
-        chapters = [intro] # Incluir la intro en el spine y TOC
-        zfill_length = len(str(len(capitulos)))
-        for idx, capitulo in enumerate(capitulos, 1):
-            nombre_capitulo = capitulo['nombre']
-            # Obtener contenido con valor por defecto
-            contenido = contenido_capitulos_novela.get(str(capitulo['_id']), '')
-
-            chapter = epub.EpubHtml(
-                title=nombre_capitulo,
-                file_name=f'cap_{idx:0{zfill_length}}.xhtml',
-                lang='es',
-            )
-            chapter.content = f"<h1>{nombre_capitulo}</h1>{contenido}"
-            book.add_item(chapter)
-            chapters.append(chapter)
-            logger.info(f"{nombre_capitulo}")
-
-        # Capítulo de Notas
-        notas = epub.EpubHtml(
-            title='Notas',
-            file_name='notas.xhtml',
-            lang='es',
-        )
-        notas.content = "<h1>Notas</h1><p>Notas adicionales...</p>"
-        book.add_item(notas)
-
-        # Estructura del libro
-        book.toc = (
-            epub.Link('intro.xhtml', 'Introducción', 'intro'),
-            (epub.Section('Capítulos'), chapters[1:]),  # Excluir intro duplicada del TOC de capítulos
-            (epub.Section('Apéndices'), [notas])
-        )
-        # Spine correcto (intro + capítulos + notas)
-        book.spine = chapters + [notas] # chapters ya incluye intro
-
-        # Añadir componentes estándar
-        book.add_item(epub.EpubNcx())
-        book.add_item(epub.EpubNav())
-
-        # CSS (mejorar compatibilidad)
-        style = """
-        body { font-family: serif; }
-        h1 { font-size: 1.8em; }
-        h2 { font-size: 1.4em; }
-        table { border: 1px solid #ccc; margin-top: 1em; }
-        td { border: 1px solid #ccc; padding: 5px; }
-        """
-        css = epub.EpubItem(
-            uid="style_css",
-            file_name="style/style.css",
-            content=style
-        )
-        book.add_item(css)
-
         # Guardar
         nombre_archivo = sanitizar_nombre(novela['nombre']) + '.epub'
         
@@ -379,70 +249,154 @@ def crearepub(novela, capitulos):
         
         # Ruta completa para guardar el archivo
         ruta_completa = f"./epub/{nombre_archivo}"
-
-        # Guardar el EPUB en la ruta seleccionada
-        epub.write_epub(ruta_completa, book, {})
-        logger.info(f"EPUB guardado en: {ruta_completa}")
         
-        # Limpiar archivo temporal
-        if portada and os.path.exists(portada):
-            try:
-                os.remove(portada)
-                logger.info("Archivo temporal de portada eliminado.")
-            except OSError as oe:
-                logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
+        if not os.path.exists(ruta_completa):
+            contenido_capitulos_novela = {
+                str(x['capitulo_id']): x['texto']
+                for x in collection_contenido_capitulos.find(
+                    {'novela_id': str(novela['_id'])}
+                ).sort('created_at', 1) # Corrección: Usar argumentos separados
+            }
+
+            # Descargar portada
+            portada = descargar_imagen(novela['imagen_url'])
+            if not portada or not os.path.exists(portada):
+                raise Exception("Error al obtener la portada")
+
+            with open(portada, 'rb') as img_file:
+                base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
+
+            book = epub.EpubBook()
+
+            # Metadatos
+            book.set_identifier(str(novela['_id']))
+            book.set_title(novela['nombre'])
+            book.set_language('es')
+            book.add_author(novela['autor'])
+
+            # Añadir portada
+            with open(portada, 'rb') as f:
+                book.set_cover('cover.jpg', f.read())
+
+            # --- Sección de Introducción Mejorada ---
+            # Traducir con respaldo (solo para nombre y sinopsis, como en PDF)
+            nombre_traducido = traducir(novela['nombre']) or novela['nombre']
+            sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
+
+            # Crear contenido HTML para la introducción, incluyendo todos los detalles
+            etiquetas = {
+                '_id': 'Novela ID',
+                'nombre': 'Nombre Novela', # Usamos nombre_traducido
+                'sinopsis': 'Sinopsis Novela', # Usamos sinopsis_traducida
+                'autor': 'Autor Novela',
+                'genero': 'Géneros Novela',
+                'status': 'Status Novela',
+                'url': 'Url Novela',
+                'imagen_url': 'Url Imagen Novela',
+                'created_at': 'Fecha Creación en Base de Datos',
+                'updated_at': 'Fecha Modificación en Base de Datos',
+            }
+
+            intro_html = f"""
+            <h1>{nombre_traducido}</h1>
+            <img src="image/jpeg;base64,{base64_cover}"
+                style="width: 300px; height: auto; margin: 0 auto; display: block;">
+            <h2>Detalles de la Novela</h2>
+            <table style="width:100%; border-collapse: collapse;">
+            <tr><td style="font-weight:bold;">{etiquetas['_id']}</td><td>{novela.get('_id', 'N/A')}</td></tr>
+            <tr><td style="font-weight:bold;">{etiquetas['nombre']}</td><td>{nombre_traducido}</td></tr>
+            <tr><td style="font-weight:bold; vertical-align:top;">{etiquetas['sinopsis']}</td><td>{sinopsis_traducida}</td></tr>
+            <tr><td style="font-weight:bold;">{etiquetas['autor']}</td><td>{novela.get('autor', 'N/A')}</td></tr>
+            <tr><td style="font-weight:bold;">{etiquetas['genero']}</td><td>{novela.get('genero', 'N/A')}</td></tr>
+            <tr><td style="font-weight:bold;">{etiquetas['status']}</td><td>{novela.get('status', 'N/A')}</td></tr>
+            <tr><td style="font-weight:bold;">{etiquetas['url']}</td><td><a href="{novela.get('url', '#')}">{novela.get('url', 'N/A')}</a></td></tr>
+            <tr><td style="font-weight:bold;">{etiquetas['imagen_url']}</td><td><a href="{novela.get('imagen_url', '#')}">Ver Imagen</a></td></tr>
+            <tr><td style="font-weight:bold;">{etiquetas['created_at']}</td><td>{novela.get('created_at', 'N/A').strftime('%Y-%m-%d %H:%M:%S') if isinstance(novela.get('created_at'), datetime) else novela.get('created_at', 'N/A')}</td></tr>
+            <tr><td style="font-weight:bold;">{etiquetas['updated_at']}</td><td>{novela.get('updated_at', 'N/A').strftime('%Y-%m-%d %H:%M:%S') if isinstance(novela.get('updated_at'), datetime) else novela.get('updated_at', 'N/A')}</td></tr>
+            </table>
+            """
+
+            intro = epub.EpubHtml(
+                title='Introducción',
+                file_name='intro.xhtml',
+                lang='es',
+            )
+            intro.content = intro_html
+            book.add_item(intro)
+
+            # --- Fin de la Introducción Mejorada ---
+
+            # Capítulos
+            chapters = [intro] # Incluir la intro en el spine y TOC
+            zfill_length = len(str(len(capitulos)))
+            for idx, capitulo in enumerate(capitulos, 1):
+                nombre_capitulo = capitulo['nombre']
+                # Obtener contenido con valor por defecto
+                contenido = contenido_capitulos_novela.get(str(capitulo['_id']), '')
+
+                chapter = epub.EpubHtml(
+                    title=nombre_capitulo,
+                    file_name=f'cap_{idx:0{zfill_length}}.xhtml',
+                    lang='es',
+                )
+                chapter.content = f"<h1>{nombre_capitulo}</h1>{contenido}"
+                book.add_item(chapter)
+                chapters.append(chapter)
+                logger.info(f"{nombre_capitulo}")
+
+            # Capítulo de Notas
+            notas = epub.EpubHtml(
+                title='Notas',
+                file_name='notas.xhtml',
+                lang='es',
+            )
+            notas.content = "<h1>Notas</h1><p>Notas adicionales...</p>"
+            book.add_item(notas)
+
+            # Estructura del libro
+            book.toc = (
+                epub.Link('intro.xhtml', 'Introducción', 'intro'),
+                (epub.Section('Capítulos'), chapters[1:]),  # Excluir intro duplicada del TOC de capítulos
+                (epub.Section('Apéndices'), [notas])
+            )
+            # Spine correcto (intro + capítulos + notas)
+            book.spine = chapters + [notas] # chapters ya incluye intro
+
+            # Añadir componentes estándar
+            book.add_item(epub.EpubNcx())
+            book.add_item(epub.EpubNav())
+
+            # CSS (mejorar compatibilidad)
+            style = """
+            body { font-family: serif; }
+            h1 { font-size: 1.8em; }
+            h2 { font-size: 1.4em; }
+            table { border: 1px solid #ccc; margin-top: 1em; }
+            td { border: 1px solid #ccc; padding: 5px; }
+            """
+            css = epub.EpubItem(
+                uid="style_css",
+                file_name="style/style.css",
+                content=style
+            )
+            book.add_item(css)
+
+            # Guardar el EPUB en la ruta seleccionada
+            epub.write_epub(ruta_completa, book, {})
+            logger.info(f"EPUB guardado en: {ruta_completa}")
+            
+            # Limpiar archivo temporal
+            if portada and os.path.exists(portada):
+                try:
+                    os.remove(portada)
+                    logger.info("Archivo temporal de portada eliminado.")
+                except OSError as oe:
+                    logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
     except Exception as e:
         logger.error(f"Error en crearepub: {str(e)}")
 
 def crearpdf(novela, capitulos):
     try:
-        # Obtener contenido de la base de datos
-        contenido_capitulos_novela = {
-            str(x['capitulo_id']): x['texto']
-            for x in collection_contenido_capitulos.find(
-                {'novela_id': str(novela['_id'])}
-            ).sort('created_at', 1) # Corrección: Usar argumentos separados
-        }
-
-        # Descargar portada
-        portada = descargar_imagen(novela['imagen_url'])
-        if not portada or not os.path.exists(portada):
-            raise Exception("Error al obtener la portada")
-
-        # Convertir imagen a base64
-        with open(portada, 'rb') as img_file:
-            base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
-
-        # Traducciones
-        nombre_traducido = traducir(novela['nombre']) or novela['nombre']
-        sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
-
-        pdf = PDF(orientation='P', unit='mm', format='A4')
-        pdf.add_font('Poppins-Regular', '', PINGO_FONT_PATH, uni=True)
-        pdf.set_font('Poppins-Regular', size=12)
-        pdf.set_title(nombre_traducido)
-        pdf.set_author(novela['autor'])
-        pdf.set_creator('David Eliceo Vite Vergara')
-
-        # Habilitar reemplazo de {{nb}} en el pie de página
-        pdf.alias_nb_pages()
-
-        pdf.add_page()
-        pdf.chapter_title(nombre_traducido)
-        pdf.image(name=portada, x=pdf.epw / 3, w=75)
-        pdf.write_html(text="<h5>Resumen:</h5>")
-        pdf.write_html(text=f"<p>{sinopsis_traducida}</p>")
-        pdf.write(text=f"Url de Novela: {novela['url']}")
-
-        # Añadir capítulos
-        for idx, capitulo in enumerate(capitulos, 1):
-            capitulo_id = str(capitulo['_id'])
-            nombre_capitulo = capitulo['nombre']
-            contenido = contenido_capitulos_novela.get(capitulo_id, '')
-
-            pdf.print_chapter(f"{nombre_capitulo}", f"{contenido}")
-            logger.info(f"{nombre_capitulo}")
-
         # Guardar archivo
         nombre_archivo = sanitizar_nombre(novela['nombre']) + '.pdf'
         
@@ -451,26 +405,73 @@ def crearpdf(novela, capitulos):
         
         # Ruta completa para guardar el archivo
         ruta_completa = f"./pdf/{nombre_archivo}"
+        
+        if not os.path.exists(ruta_completa):
+            # Obtener contenido de la base de datos
+            contenido_capitulos_novela = {
+                str(x['capitulo_id']): x['texto']
+                for x in collection_contenido_capitulos.find(
+                    {'novela_id': str(novela['_id'])}
+                ).sort('created_at', 1) # Corrección: Usar argumentos separados
+            }
 
-        try:
-            # Guardar el PDF en la ruta especificada
-            with open(ruta_completa, 'wb') as filepdf:
-                pdf.output(filepdf)
+            # Descargar portada
+            portada = descargar_imagen(novela['imagen_url'])
+            if not portada or not os.path.exists(portada):
+                raise Exception("Error al obtener la portada")
 
-            logger.info(f"PDF guardado en: {ruta_completa}")
-        except PermissionError as pe:
-            logger.error(f"Error de permisos al guardar PDF: {pe}")
-        except Exception as ex:
-            logger.error(f"Error al guardar PDF: {str(ex)}")
-        finally:
-            # Limpiar archivo temporal
-            if portada and os.path.exists(portada):
-                try:
-                    os.remove(portada)
-                    logger.info("Archivo temporal de portada eliminado.")
-                except OSError as oe:
-                    logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
+            # Convertir imagen a base64
+            with open(portada, 'rb') as img_file:
+                base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
 
+            # Traducciones
+            nombre_traducido = traducir(novela['nombre']) or novela['nombre']
+            sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
+
+            pdf = PDF(orientation='P', unit='mm', format='A4')
+            pdf.add_font('Poppins-Regular', '', PINGO_FONT_PATH, uni=True)
+            pdf.set_font('Poppins-Regular', size=12)
+            pdf.set_title(nombre_traducido)
+            pdf.set_author(novela['autor'])
+            pdf.set_creator('David Eliceo Vite Vergara')
+
+            # Habilitar reemplazo de {{nb}} en el pie de página
+            pdf.alias_nb_pages()
+
+            pdf.add_page()
+            pdf.chapter_title(nombre_traducido)
+            pdf.image(name=portada, x=pdf.epw / 3, w=75)
+            pdf.write_html(text="<h5>Resumen:</h5>")
+            pdf.write_html(text=f"<p>{sinopsis_traducida}</p>")
+            pdf.write(text=f"Url de Novela: {novela['url']}")
+
+            # Añadir capítulos
+            for idx, capitulo in enumerate(capitulos, 1):
+                capitulo_id = str(capitulo['_id'])
+                nombre_capitulo = capitulo['nombre']
+                contenido = contenido_capitulos_novela.get(capitulo_id, '')
+
+                pdf.print_chapter(f"{nombre_capitulo}", f"{contenido}")
+                logger.info(f"{nombre_capitulo}")
+
+            try:
+                # Guardar el PDF en la ruta especificada
+                with open(ruta_completa, 'wb') as filepdf:
+                    pdf.output(filepdf)
+
+                logger.info(f"PDF guardado en: {ruta_completa}")
+            except PermissionError as pe:
+                logger.error(f"Error de permisos al guardar PDF: {pe}")
+            except Exception as ex:
+                logger.error(f"Error al guardar PDF: {str(ex)}")
+            finally:
+                # Limpiar archivo temporal
+                if portada and os.path.exists(portada):
+                    try:
+                        os.remove(portada)
+                        logger.info("Archivo temporal de portada eliminado.")
+                    except OSError as oe:
+                        logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
     except Exception as e:
         logger.error(f"Error en crearpdf: {str(e)}")
 
@@ -547,21 +548,6 @@ def obtener_capitulos_webscrapping(cap_faltantes, novela_id):
         logger.info("WebDriver cerrado.")
 
 
-# for sitio in collection_sitios.find():
-#     sitio_id = str(sitio['_id'])
-#     if sitio_id == FANMTL_SITIO_ID:
-#         total_novelas = collection_novelas.count_documents({'sitio_id': sitio_id})
-#         novelas_cursor = collection_novelas.find({'sitio_id': sitio_id}, {'_id': 1, 'nombre': 1}).sort('_id', 1)
-#         for novela in novelas_cursor:
-#             novela_id = str(novela['_id'])
-#             print(f"{novela['_id']} - {novela['nombre']}")
-#             capitulos_dictionary = {str(capitulo['_id']): capitulo['url'] for capitulo in collection_capitulos.find({'novela_id': novela_id}, {'_id': 1, 'url': 1}).sort('created_at', 1)}
-#             contenido_capitulos = [str(contenido['_id']) for contenido in collection_contenido_capitulos.find({'novela_id': novela_id}, {'_id': 1}).sort('created_at', 1)]
-#             capitulos_procesar = comparar_diccionarios(capitulos_dictionary.keys(), contenido_capitulos)
-#             if capitulos_procesar is not None:
-#                 obtener_capitulos_webscrapping(capitulos_procesar, novela_id)]
-
-
 def procesar_novelas_sitio(sitio_id_obj):
     """
     Procesa todas las novelas de un sitio específico:
@@ -584,10 +570,13 @@ def procesar_novelas_sitio(sitio_id_obj):
 
     novelas_cursor = collection_novelas.find(
         {'sitio_id': sitio_id},
-        {'_id': 1, 'nombre': 1} # Solo proyectar campos necesarios
+        {'_id': 1, 'nombre': 1}, # Solo proyectar campos necesarios
+        no_cursor_timeout=True
     ).sort('_id', 1)
+    novelas_list = [{'_id': x['_id'], 'nombre': x['nombre']} for x in novelas_cursor]
+    novelas_cursor.close()
 
-    for novela_doc in novelas_cursor:
+    for novela_doc in novelas_list:
         novela_id = str(novela_doc['_id'])
         nombre_novela = novela_doc['nombre']
         logger.info(f"Procesando novela: {novela_id} - {nombre_novela}")
