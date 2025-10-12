@@ -212,12 +212,12 @@ def procesar_capitulos(driver, url_novela):
             elementos_capitulos = chpagedlist_container.find_elements(By.CSS_SELECTOR, "ul.chapter-list li a")
 
             if not elementos_capitulos:
-                 logger.warning(f"No se encontraron capítulos en la página actual (intentos de scraping: {total_paginas_procesadas + 1}).")
-                 # Intento alternativo: buscar enlaces directos de capítulos si la estructura es distinta
-                 # Esto es un fallback genérico, adaptar según sea necesario
-                 elementos_capitulos = chpagedlist_container.find_elements(By.CSS_SELECTOR, "a[href*='_']") 
-                 if elementos_capitulos:
-                     logger.info("Se encontraron enlaces de capítulos con selector alternativo.")
+                logger.warning(f"No se encontraron capítulos en la página actual (intentos de scraping: {total_paginas_procesadas + 1}).")
+                # Intento alternativo: buscar enlaces directos de capítulos si la estructura es distinta
+                # Esto es un fallback genérico, adaptar según sea necesario
+                elementos_capitulos = chpagedlist_container.find_elements(By.CSS_SELECTOR, "a[href*='_']") 
+                if elementos_capitulos:
+                    logger.info("Se encontraron enlaces de capítulos con selector alternativo.")
 
             logger.info(f"Se encontraron {len(elementos_capitulos)} capítulos en la página actual.")
             for elemento in elementos_capitulos:
@@ -238,8 +238,8 @@ def procesar_capitulos(driver, url_novela):
                         if capitulo_info['titulo'] != 'N/A': # Asegurarse que tiene título
                             capitulos.append(capitulo_info)
                     except:
-                         logger.warning(f"Error adicional al intentar obtener título/URL alternativo.")
-                         continue # Pasar al siguiente elemento
+                        logger.warning(f"Error adicional al intentar obtener título/URL alternativo.")
+                        continue # Pasar al siguiente elemento
 
             # --- Manejo de Paginación de Capítulos AJAX ---
             # Buscar enlaces de paginación *dentro* del contenedor actualizado
