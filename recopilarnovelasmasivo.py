@@ -1,6 +1,7 @@
 import asyncio
 import base64
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import MongoClient
 from bson.objectid import ObjectId
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
@@ -22,10 +23,13 @@ from tempfile import gettempdir
 from urllib.parse import urlparse
 from fpdf import FPDF
 import logging
+import requests
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+NOVELAS_EXLUIDAS = int(os.getenv('NOVELAS_EXLUIDAS', [])) # Valor por defecto 0 si no está definido
 
 # Configuration
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://192.168.1.11:27017")
@@ -36,7 +40,7 @@ COLLECTION_CAPITULOS = "app_capitulo"
 COLLECTION_CONTENIDO_CAPITULOS = 'app_contenidocapitulo'
 
 # Initialize MongoDB client (asynchronous)
-client = AsyncIOMotorClient(MONGO_URI)
+client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 collection_sitios = db[COLLECTION_SITIOS]
 collection_novelas = db[COLLECTION_NOVELAS]
@@ -49,13 +53,13 @@ TUNOVELA_LIGERA_SITIO_ID = '680ecb15e1ce8081ecb8b4d1'
 
 # --- Límites de caracteres para servicios de traducción (ajusta según sea necesario) ---
 CHARACTER_LIMITS = {
-    'google': 5000,
-    'google_new': 5000,
-    'bing': 5000,
+    'google': 4500,
+    'google_new': 4500,
+    'bing': 4500,
 }
 
 # --- Additional Constants ---
-DEFAULT_SLEEP_TIME = 3
+DEFAULT_SLEEP_TIME = 2
 PARAGRAPH_DELIMITER = "---PARAGRAPH_DELIMITER---"
 TEMP_IMAGE_FILENAME = "imagen_descargada.jpg"
 PINGO_FONT_PATH = os.path.join(os.getcwd(), 'recopilarnovelasdjango', 'static', 'fonts', 'Poppins-Regular.ttf')
@@ -134,14 +138,28 @@ async def enviar_contenido_capitulo(novela_id, capitulo_id, texto_capitulo):
         'created_at': datetime.now(),
         'updated_at': datetime.now()
     }
-    result = await collection_contenido_capitulos.insert_one(novel_data)
+    result = collection_contenido_capitulos.insert_one(novel_data)
     return str(result.inserted_id)
 
 async def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_id, traducir_flag=False, delimitador='--- párrafo_delimiter ---'):
     """Función auxiliar para extraer y guardar contenido de capítulos."""
     div_contenido = soup.find('div', class_=selector_css)
     if div_contenido:
-        textos_originales = [p.getText() for p in div_contenido.find_all('p') if p.getText().strip()]
+        p_tags = div_contenido.find_all('p')
+        # Filtramos los párrafos que tienen texto
+        p_tags_con_texto = [p for p in p_tags if p.getText().strip()]
+        
+        if p_tags_con_texto:
+            textos_originales = [p.getText().strip() for p in p_tags_con_texto]
+        else:
+            # Obtener HTML interno y dividir por <br>
+            html_str = str(div_contenido)
+            br_separated = html_str.split('<br/>')
+            textos_originales = [
+                bs(part, 'html.parser').get_text().strip()
+                for part in br_separated
+                if bs(part, 'html.parser').get_text().strip()
+            ]
         if textos_originales:
             texto_capitulo = ""
             if traducir_flag:
@@ -161,7 +179,7 @@ async def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_i
         return None
 
 async def manejar_driver_capitulos(driver, novela_id, capitulo_id):
-    novela_doc = await collection_novelas.find_one({'_id': ObjectId(novela_id)})
+    novela_doc = collection_novelas.find_one({'_id': ObjectId(novela_id)})
     if not novela_doc:
         logger.error("Error: Novela no encontrada.")
         return
@@ -222,7 +240,7 @@ async def crearepub(novela, capitulos):
         # --- REMOVIDA LA CONDICIÓN: Se genera siempre ---
         cursor = collection_contenido_capitulos.find({'novela_id': str(novela['_id'])}).sort('created_at', 1)
         contenido_capitulos_novela = {}
-        async for doc in cursor:
+        for doc in cursor:
             contenido_capitulos_novela[str(doc['capitulo_id'])] = doc['texto']
 
         portada = await descargar_imagen(novela['imagen_url'])
@@ -308,7 +326,8 @@ async def crearepub(novela, capitulos):
         css = epub.EpubItem(uid="style_css", file_name="style/style.css", content=style)
         book.add_item(css)
 
-        await asyncio.get_event_loop().run_in_executor(None, epub.write_epub, ruta_completa, book, {})
+        # Guardar el EPUB en la ruta seleccionada
+        epub.write_epub(ruta_completa, book, {})
 
         logger.info(f"EPUB guardado en: {ruta_completa}")
 
@@ -330,16 +349,15 @@ async def crearpdf(novela, capitulos):
         # --- REMOVIDA LA CONDICIÓN: Se genera siempre ---
         cursor = collection_contenido_capitulos.find({'novela_id': str(novela['_id'])}).sort('created_at', 1)
         contenido_capitulos_novela = {}
-        async for doc in cursor:
+        for doc in cursor:
             contenido_capitulos_novela[str(doc['capitulo_id'])] = doc['texto']
 
         portada = await descargar_imagen(novela['imagen_url'])
         if not portada or not os.path.exists(portada):
             raise Exception("Error al obtener la portada")
 
-        async with aiofiles.open(portada, 'rb') as img_file:
-            image_data = await img_file.read()
-            base64_cover = base64.b64encode(image_data).decode('utf-8')
+        with open(portada, 'rb') as img_file:
+            base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
 
         nombre_traducido = await traducir(novela['nombre']) or novela['nombre']
         sinopsis_traducida = await traducir(novela['sinopsis']) or novela['sinopsis']
@@ -368,8 +386,8 @@ async def crearpdf(novela, capitulos):
             logger.info(f"{nombre_capitulo}")
 
         try:
-            async with aiofiles.open(ruta_completa, 'wb') as filepdf:
-                await asyncio.get_event_loop().run_in_executor(None, pdf.output, filepdf)
+            with open(ruta_completa, 'wb') as filepdf:
+                pdf.output(filepdf)
 
             logger.info(f"PDF guardado en: {ruta_completa}")
         except PermissionError as pe:
@@ -386,50 +404,37 @@ async def crearpdf(novela, capitulos):
     except Exception as e:
         logger.error(f"Error en crearpdf: {str(e)}")
 
-async def load_novela_details(novela_id):
+def load_novela_details(novela_id):
     try:
-        novela = await collection_novelas.find_one({'_id': ObjectId(novela_id)})
-        cursor = collection_capitulos.find({'novela_id': novela_id}).sort('created_at', 1)
-        capitulos = []
-        async for cap in cursor:
-            capitulos.append(cap)
-        return novela, capitulos
+        # Corrección: Usar argumentos separados para sort
+        return collection_novelas.find_one({'_id': ObjectId(novela_id)}), [capitulo for capitulo in collection_capitulos.find({'novela_id': novela_id}).sort('created_at', 1)]
     except Exception as e:
         logger.error(f"Error loading novela details: {e}")
         return None, []
 
-async def load_ids_capitulos_novela(novela_id):
+def load_ids_capitulos_novela(novela_id):
     try:
-        cursor = collection_capitulos.find({'novela_id': novela_id}, {'_id': 1}).sort('created_at', 1)
-        ids = set()
-        async for cap in cursor:
-            ids.add(str(cap['_id']))
-        return ids
+        # Corrección: Usar argumentos separados para sort y projection correctamente
+        return {str(capitulo['_id']) for capitulo in collection_capitulos.find({'novela_id': novela_id}, {'_id': 1}).sort('created_at', 1)}
     except Exception as e:
         logger.error(f"Error loading capitulo novela details: {e}")
-        return set()
+        return set() # Devolver un conjunto vacío en caso de error
 
-async def load_ids_urls_capitulos_novela(novela_id):
+def load_ids_urls_capitulos_novela(novela_id):
     try:
-        cursor = collection_capitulos.find({'novela_id': novela_id}, {'_id': 1, 'url': 1}).sort('created_at', 1)
-        mapping = {}
-        async for cap in cursor:
-            mapping[str(cap['_id'])] = cap['url']
-        return mapping
+        # Corrección: Usar argumentos separados para sort y projection correctamente
+        return {str(capitulo['_id']):capitulo['url'] for capitulo in collection_capitulos.find({'novela_id': novela_id}, {'_id': 1, 'url': 1}).sort('created_at', 1)}
     except Exception as e:
         logger.error(f"Error loading ids urls capitulos details: {e}")
-        return {}
+        return {} # Devolver un diccionario vacío en caso de error
 
-async def load_ids_contenido_capitulos_novela(novela_id):
+def load_ids_contenido_capitulos_novela(novela_id):
     try:
-        cursor = collection_contenido_capitulos.find({'novela_id': novela_id}, {'capitulo_id': 1, '_id': 0}).sort('created_at', 1)
-        ids = []
-        async for contenido in cursor:
-            ids.append(str(contenido['capitulo_id']))
-        return ids
+        # Corrección: Usar argumentos separados para sort y projection correctamente
+        return [str(contenido['capitulo_id']) for contenido in collection_contenido_capitulos.find({'novela_id': novela_id}, {'capitulo_id': 1, '_id': 0}).sort('created_at', 1)]
     except Exception as e:
         logger.error(f"Error loading ids contenido capitulos novela details: {e}")
-        return []
+        return [] # Devolver una lista vacía en caso de error
 
 def comparar_diccionarios(dic1, dic2):
     return [x for x in dic1 if x not in dic2]
@@ -440,24 +445,34 @@ def instanciar_driver():
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
     return webdriver.Firefox(options=options, service=Service(executable_path=f"{os.getcwd()}/geckodriver/geckodriver.exe"))
 
-async def manejar_selenium_session(url, novela_id, cap_id):
+async def obtener_capitulos_webscrapping(cap_faltantes, novela_id):
+    urls_capitulos = load_ids_urls_capitulos_novela(novela_id)
     driver = instanciar_driver()
-    try:
-        driver.get(url)
-        await manejar_driver_capitulos(driver, novela_id, cap_id)
+    try: # Añadir try/finally para asegurar driver.quit()
+        for cap in urls_capitulos:
+            if str(cap) in cap_faltantes:
+                max_intentos = 3 # Añadir límite de reintentos
+                intento = 0
+                while intento < max_intentos:
+                    try:
+                        driver.get(urls_capitulos[cap])
+                        await manejar_driver_capitulos(driver, novela_id, str(cap))
+                        break # Salir del bucle de reintentos si tiene éxito
+                    except  requests.exceptions.RequestException as re:
+                        intento += 1
+                        logger.warning(f"Intento {intento} fallido para capítulo {cap} (Error de red): {re}")
+                        if intento == max_intentos:
+                            logger.error(f"Error persistente de red al obtener capítulo {cap}")
+                        time.sleep(2) # Esperar antes de reintentar
+                    except Exception as error:
+                        intento += 1
+                        logger.error(f"Intento {intento} fallido para capítulo {cap} (Error desconocido): {error}")
+                        if intento == max_intentos:
+                            logger.error(f"Error persistente al obtener capítulo {cap}")
+                        time.sleep(2) # Esperar antes de reintentar
     finally:
         driver.quit()
-
-async def obtener_capitulos_webscrapping(cap_faltantes, novela_id):
-    urls_capitulos = await load_ids_urls_capitulos_novela(novela_id)
-    tasks = []
-    for cap in urls_capitulos:
-        if str(cap) in cap_faltantes:
-            task = manejar_selenium_session(urls_capitulos[cap], novela_id, str(cap))
-            tasks.append(task)
-    
-    if tasks:
-        await asyncio.gather(*tasks)
+        logger.info("WebDriver cerrado.")
 
 async def procesar_novelas_sitio(sitio_id_obj):
     sitio_id = str(sitio_id_obj)
@@ -468,12 +483,12 @@ async def procesar_novelas_sitio(sitio_id_obj):
 
     logger.info(f"Iniciando procesamiento para sitio_id: {sitio_id}")
 
-    total_novelas = await collection_novelas.count_documents({'sitio_id': sitio_id})
+    total_novelas = collection_novelas.count_documents({'sitio_id': sitio_id})
     logger.info(f"Total novelas encontradas para procesar: {total_novelas}")
 
     cursor = collection_novelas.find({'sitio_id': sitio_id}, {'_id': 1, 'nombre': 1}).sort('_id', 1)
     novelas_list = []
-    async for novela in cursor:
+    for novela in cursor:
         novelas_list.append({'_id': novela['_id'], 'nombre': novela['nombre']})
 
     for novela_doc in novelas_list:
@@ -481,42 +496,44 @@ async def procesar_novelas_sitio(sitio_id_obj):
         nombre_novela = novela_doc['nombre']
         logger.info(f"Procesando novela: {novela_id} - {nombre_novela}")
 
-        try:
-            novela_completa, capitulos_lista = await load_novela_details(novela_id)
-            if not novela_completa:
-                logger.error(f"No se encontró la novela completa para ID {novela_id}. Saltando.")
-                continue
+        if novela_id not in NOVELAS_EXLUIDAS:
+            try:
+                novela_completa, capitulos_lista = load_novela_details(novela_id)
+                if not novela_completa:
+                    logger.error(f"No se encontró la novela completa para ID {novela_id}. Saltando.")
+                    continue
 
-            capitulos_dictionary = await load_ids_urls_capitulos_novela(novela_id)
-            contenido_capitulos_ids = await load_ids_contenido_capitulos_novela(novela_id)
+                capitulos_dictionary = load_ids_urls_capitulos_novela(novela_id)
+                contenido_capitulos_ids = load_ids_contenido_capitulos_novela(novela_id)
 
-            if not capitulos_dictionary:
-                logger.warning(f"No se encontraron capítulos para la novela {novela_id}. Saltando.")
-                continue
+                if not capitulos_dictionary:
+                    logger.warning(f"No se encontraron capítulos para la novela {novela_id}. Saltando.")
+                    continue
 
-            capitulos_faltantes_ids = comparar_diccionarios(
-                list(capitulos_dictionary.keys()),
-                contenido_capitulos_ids
-            )
+                capitulos_faltantes_ids = comparar_diccionarios(
+                    list(capitulos_dictionary.keys()),
+                    contenido_capitulos_ids
+                )
 
-            if capitulos_faltantes_ids:
-                logger.info(f"Encontrados {len(capitulos_faltantes_ids)} capítulos faltantes para '{nombre_novela}'.")
-                await obtener_capitulos_webscrapping(capitulos_faltantes_ids, novela_id)
+                if capitulos_faltantes_ids:
+                    logger.info(f"Encontrados {len(capitulos_faltantes_ids)} capítulos faltantes para '{nombre_novela}'.")
+                    await obtener_capitulos_webscrapping(capitulos_faltantes_ids, novela_id)
+                else:
+                    logger.info(f"No hay capítulos faltantes para '{nombre_novela}'.")
+                
                 logger.info(f"Iniciando generación de archivos para '{nombre_novela}'.")
                 await crearepub(novela_completa, capitulos_lista)
                 await crearpdf(novela_completa, capitulos_lista)
                 logger.info(f"Generación de archivos completada para '{nombre_novela}'.")
-            else:
-                logger.info(f"No hay capítulos faltantes para '{nombre_novela}'.")
 
-        except Exception as e:
-            logger.error(f"Error procesando novela {novela_id} ('{nombre_novela}'): {e}")
-            continue
+            except Exception as e:
+                logger.error(f"Error procesando novela {novela_id} ('{nombre_novela}'): {e}")
+                continue
 
     logger.info(f"Finalizado procesamiento para sitio_id: {sitio_id}")
 
 async def main():
-    async for sitio in collection_sitios.find():
+    for sitio in collection_sitios.find():
         sitio_id = sitio.get('_id')
         if sitio_id:
             await procesar_novelas_sitio(sitio_id)

@@ -219,7 +219,7 @@ def main(page: ft.Page):
                 continue
         return texto
 
-    def traducir_texto_largo(texto: str, delimitador: str = PARAGRAPH_DELIMITER) -> str:
+    def traducir_texto_largo(texto: str, delimitador: str = '--- párrafo_delimiter ---') -> str:
         """
         Traduce texto largo dividiéndolo si excede el límite de caracteres del servicio.
         Esta función envuelve la función `traducir` original para manejar límites.
@@ -289,11 +289,25 @@ def main(page: ft.Page):
         }
         return str(collection_contenido_capitulos.insert_one(novel_data).inserted_id)
 
-    def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_id, traducir_flag=False, delimitador='--- párrafo_delimiter ---'):
+    def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_id, traducir_flag=False, delimitador=PARAGRAPH_DELIMITER):
         """Función auxiliar para extraer y guardar contenido de capítulos."""
         div_contenido = soup.find('div', class_=selector_css)
         if div_contenido:
-            textos_originales = [p.getText() for p in div_contenido.find_all('p') if p.getText().strip()]
+            p_tags = div_contenido.find_all('p')
+            # Filtramos los párrafos que tienen texto
+            p_tags_con_texto = [p for p in p_tags if p.getText().strip()]
+            
+            if p_tags_con_texto:
+                textos_originales = [p.getText().strip() for p in p_tags_con_texto]
+            else:
+                # Obtener HTML interno y dividir por <br>
+                html_str = str(div_contenido)
+                br_separated = html_str.split('<br/>')
+                textos_originales = [
+                    bs(part, 'html.parser').get_text().strip()
+                    for part in br_separated
+                    if bs(part, 'html.parser').get_text().strip()
+                ]
             if textos_originales:
                 texto_capitulo = ""
                 if traducir_flag:
