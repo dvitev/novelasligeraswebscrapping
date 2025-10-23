@@ -24,12 +24,16 @@ from urllib.parse import urlparse
 from fpdf import FPDF
 import logging
 import requests
+import os
+from dotenv import load_dotenv
+
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-NOVELAS_EXLUIDAS = int(os.getenv('NOVELAS_EXLUIDAS', [])) # Valor por defecto 0 si no está definido
+NOVELAS_EXCLUIDAS_STR = os.getenv('NOVELAS_EXLUIDAS', '')
+NOVELAS_EXLUIDAS = NOVELAS_EXCLUIDAS_STR.split(',') if NOVELAS_EXCLUIDAS_STR else []
 
 # Configuration
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://192.168.1.11:27017")
@@ -190,7 +194,10 @@ async def manejar_driver_capitulos(driver, novela_id, capitulo_id):
     if FANMTL_SITIO_ID == sitio_id:
         await asyncio.sleep(DEFAULT_SLEEP_TIME)
         soup = bs(driver.page_source, 'html.parser')
-        _id = await _extraer_y_guardar_contenido(soup, 'chapter-content', novela_id, capitulo_id, traducir_flag=True, delimitador=PARAGRAPH_DELIMITER)
+        error = soup.find('p', _class='error')
+        if not error:
+            _id = await _extraer_y_guardar_contenido(soup, 'chapter-content', novela_id, capitulo_id, traducir_flag=True, delimitador=PARAGRAPH_DELIMITER)
+        
 
     # tunovelaligera.com
     elif TUNOVELA_LIGERA_SITIO_ID == sitio_id:
@@ -518,13 +525,14 @@ async def procesar_novelas_sitio(sitio_id_obj):
                 if capitulos_faltantes_ids:
                     logger.info(f"Encontrados {len(capitulos_faltantes_ids)} capítulos faltantes para '{nombre_novela}'.")
                     await obtener_capitulos_webscrapping(capitulos_faltantes_ids, novela_id)
+                    logger.info(f"Iniciando generación de archivos para '{nombre_novela}'.")
+                    await crearepub(novela_completa, capitulos_lista)
+                    await crearpdf(novela_completa, capitulos_lista)
+                    logger.info(f"Generación de archivos completada para '{nombre_novela}'.")
                 else:
                     logger.info(f"No hay capítulos faltantes para '{nombre_novela}'.")
                 
-                logger.info(f"Iniciando generación de archivos para '{nombre_novela}'.")
-                await crearepub(novela_completa, capitulos_lista)
-                await crearpdf(novela_completa, capitulos_lista)
-                logger.info(f"Generación de archivos completada para '{nombre_novela}'.")
+                
 
             except Exception as e:
                 logger.error(f"Error procesando novela {novela_id} ('{nombre_novela}'): {e}")
