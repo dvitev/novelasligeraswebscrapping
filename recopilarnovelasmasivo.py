@@ -503,40 +503,39 @@ async def procesar_novelas_sitio(sitio_id_obj):
         nombre_novela = novela_doc['nombre']
         logger.info(f"Procesando novela: {novela_id} - {nombre_novela}")
 
-        if novela_id not in NOVELAS_EXLUIDAS:
-            try:
-                novela_completa, capitulos_lista = load_novela_details(novela_id)
-                if not novela_completa:
-                    logger.error(f"No se encontró la novela completa para ID {novela_id}. Saltando.")
-                    continue
-
-                capitulos_dictionary = load_ids_urls_capitulos_novela(novela_id)
-                contenido_capitulos_ids = load_ids_contenido_capitulos_novela(novela_id)
-
-                if not capitulos_dictionary:
-                    logger.warning(f"No se encontraron capítulos para la novela {novela_id}. Saltando.")
-                    continue
-
-                capitulos_faltantes_ids = comparar_diccionarios(
-                    list(capitulos_dictionary.keys()),
-                    contenido_capitulos_ids
-                )
-
-                if capitulos_faltantes_ids:
-                    logger.info(f"Encontrados {len(capitulos_faltantes_ids)} capítulos faltantes para '{nombre_novela}'.")
-                    await obtener_capitulos_webscrapping(capitulos_faltantes_ids, novela_id)
-                    logger.info(f"Iniciando generación de archivos para '{nombre_novela}'.")
-                    await crearepub(novela_completa, capitulos_lista)
-                    await crearpdf(novela_completa, capitulos_lista)
-                    logger.info(f"Generación de archivos completada para '{nombre_novela}'.")
-                else:
-                    logger.info(f"No hay capítulos faltantes para '{nombre_novela}'.")
-                
-                
-
-            except Exception as e:
-                logger.error(f"Error procesando novela {novela_id} ('{nombre_novela}'): {e}")
+        try:
+            novela_completa, capitulos_lista = load_novela_details(novela_id)
+            if not novela_completa:
+                logger.error(f"No se encontró la novela completa para ID {novela_id}. Saltando.")
                 continue
+
+            capitulos_dictionary = load_ids_urls_capitulos_novela(novela_id)
+            contenido_capitulos_ids = load_ids_contenido_capitulos_novela(novela_id)
+
+            if not capitulos_dictionary:
+                logger.warning(f"No se encontraron capítulos para la novela {novela_id}. Saltando.")
+                continue
+
+            capitulos_faltantes_ids = comparar_diccionarios(
+                list(capitulos_dictionary.keys()),
+                contenido_capitulos_ids
+            )
+
+            if capitulos_faltantes_ids:
+                logger.info(f"Encontrados {len(capitulos_faltantes_ids)} capítulos faltantes para '{nombre_novela}'.")
+                await obtener_capitulos_webscrapping(capitulos_faltantes_ids, novela_id)
+                logger.info(f"Iniciando generación de archivos para '{nombre_novela}'.")
+                await crearepub(novela_completa, capitulos_lista)
+                await crearpdf(novela_completa, capitulos_lista)
+                logger.info(f"Generación de archivos completada para '{nombre_novela}'.")
+            else:
+                logger.info(f"No hay capítulos faltantes para '{nombre_novela}'.")
+            
+            
+
+        except Exception as e:
+            logger.error(f"Error procesando novela {novela_id} ('{nombre_novela}'): {e}")
+            continue
 
     logger.info(f"Finalizado procesamiento para sitio_id: {sitio_id}")
 
