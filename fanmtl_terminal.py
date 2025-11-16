@@ -439,7 +439,7 @@ class FanmtlScraperAutomatico:
             all_novel_urls = [
                 novela['url']
                 for novela in coleccion_app_novela.find(
-                    {'sitio_id': SITIO_ID},
+                    {'sitio_id': SITIO_ID, 'status': {'$in': ['emision']}},
                     {'url': 1}
                 ).sort('_id')
             ]
@@ -507,6 +507,10 @@ class FanmtlScraperAutomatico:
                     if novel_name in self.existing_novels:
                         novel_id = self.existing_novels[novel_name]
                         urls_novelas.add(novel_url)
+                        coleccion_app_novela.update_one(
+                            {'_id': ObjectId(novel_id)},
+                            {'$set': {'url': novel_url, 'status': datos_detalle.get('estado', 'N/A'), 'updated_at': datetime.now()}}
+                        )
                         logger.info(f"Novela '{novel_name}' ya existe en la base de datos (ID: {novel_id}).")
                         print(f"Novela '{novel_name[:50]}...' ya existe. Verificando capítulos...")
                     else:
