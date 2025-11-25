@@ -620,6 +620,13 @@ class FanmtlScraperAutomatico:
                         "progress": True
                     })
                     # Continuar con la siguiente novela
+            else:
+                logger.info(f"({processed_count}/{total_novels}) Saltando novela ya existente: {novel_url}")
+                self.page_pubsub.send_all({
+                    "status": f"({processed_count}/{total_novels}) Saltando novela ya existente.",
+                    "color": COLOR_ERROR,
+                    "progress": True
+                })
         
         logger.info("Proceso de scraping automático completado.")
         self.page_pubsub.send_all({
