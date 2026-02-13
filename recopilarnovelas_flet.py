@@ -25,6 +25,7 @@ from tempfile import gettempdir
 from urllib.parse import urlparse
 from fpdf import FPDF
 import logging
+import threading
 
 # --- Logging Configuration ---
 # Configuración básica del logger
@@ -67,47 +68,168 @@ PINGO_FONT_PATH = os.path.join(os.getcwd(), 'recopilarnovelasdjango', 'static', 
 
 # --- Constantes de Paginación ---
 NOVELAS_POR_PAGINA = 20 # Ajusta este número según el rendimiento deseado
+CAPITULOS_POR_PAGINA = 50 # Capítulos por página en vista de detalle de novela
+
+# --- Constantes de Colores Personalizados ---
+class AppColors:
+    """Paleta de colores moderna para la aplicación"""
+    # Colores primarios - Gradiente púrpura/azul
+    PRIMARY = "#7C3AED"  # Violeta vibrante
+    PRIMARY_LIGHT = "#A78BFA"
+    PRIMARY_DARK = "#5B21B6"
+    
+    # Colores secundarios - Cyan/Teal
+    SECONDARY = "#06B6D4"
+    SECONDARY_LIGHT = "#22D3EE"
+    
+    # Colores de acento
+    ACCENT_GREEN = "#10B981"
+    ACCENT_ORANGE = "#F59E0B"
+    ACCENT_RED = "#EF4444"
+    ACCENT_PINK = "#EC4899"
+    
+    # Fondos oscuros con tonos azulados
+    BG_DARK = "#0F172A"  # Fondo principal
+    BG_CARD = "#1E293B"  # Fondo de tarjetas
+    BG_ELEVATED = "#334155"  # Elementos elevados
+    BG_HOVER = "#475569"  # Estado hover
+    
+    # Bordes y divisores
+    BORDER = "#475569"
+    BORDER_LIGHT = "#64748B"
+    
+    # Texto
+    TEXT_PRIMARY = "#F8FAFC"
+    TEXT_SECONDARY = "#94A3B8"
+    TEXT_MUTED = "#64748B"
+    
+    # Estados
+    SUCCESS = "#10B981"
+    WARNING = "#F59E0B"
+    ERROR = "#EF4444"
+    INFO = "#3B82F6"
 
 # --- Tema Oscuro Personalizado ---
 def create_dark_theme():
     return ft.Theme(
         color_scheme_seed=ft.Colors.DEEP_PURPLE,
         color_scheme=ft.ColorScheme(
-            primary=ft.Colors.DEEP_PURPLE_300, # Colores más claros para modo oscuro
-            secondary=ft.Colors.TEAL_300,
-            surface=ft.Colors.GREY_800, # Superficies oscuras
-            background=ft.Colors.GREY_900, # Fondo muy oscuro
-            on_surface=ft.Colors.WHITE, # Texto sobre superficies oscuras
-            on_background=ft.Colors.WHITE, # Texto sobre fondo
-            error=ft.Colors.RED_300, # Errores más claros
+            primary=AppColors.PRIMARY,
+            secondary=AppColors.SECONDARY,
+            surface=AppColors.BG_CARD,
+            background=AppColors.BG_DARK,
+            on_surface=AppColors.TEXT_PRIMARY,
+            on_background=AppColors.TEXT_PRIMARY,
+            error=AppColors.ERROR,
         ),
         text_theme=ft.TextTheme(
-            headline_medium=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-            headline_small=ft.TextStyle(size=20, weight=ft.FontWeight.W_600, color=ft.Colors.WHITE),
-            title_medium=ft.TextStyle(size=16, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE),
-            body_medium=ft.TextStyle(size=14, color=ft.Colors.GREY_300), # Cuerpo de texto más claro
-            body_small=ft.TextStyle(size=12, color=ft.Colors.GREY_400),
+            headline_medium=ft.TextStyle(size=28, weight=ft.FontWeight.BOLD, color=AppColors.TEXT_PRIMARY),
+            headline_small=ft.TextStyle(size=22, weight=ft.FontWeight.W_600, color=AppColors.TEXT_PRIMARY),
+            title_medium=ft.TextStyle(size=16, weight=ft.FontWeight.W_500, color=AppColors.TEXT_PRIMARY),
+            body_medium=ft.TextStyle(size=14, color=AppColors.TEXT_SECONDARY),
+            body_small=ft.TextStyle(size=12, color=AppColors.TEXT_MUTED),
         ),
         visual_density=ft.VisualDensity.ADAPTIVE_PLATFORM_DENSITY,
-        # Ajustar colores de componentes específicos para el modo oscuro
         appbar_theme=ft.AppBarTheme(
-            color=ft.Colors.WHITE, # Color del texto del AppBar
+            color=AppColors.TEXT_PRIMARY,
         ),
-        # Corrección: elevated_button_theme recibe un ElevatedButtonTheme
-        # y se le pasa un ft.TextStyle al argumento text_style
         elevated_button_theme=ft.ElevatedButtonTheme(
-            text_style=ft.TextStyle(color=ft.Colors.WHITE) # <-- Argumento correcto y tipo correcto
-            # Puedes añadir otros estilos predeterminados aquí si es necesario
-            # Por ejemplo: bgcolor=ft.Colors.GREY_700
+            text_style=ft.TextStyle(color=AppColors.TEXT_PRIMARY, weight=ft.FontWeight.W_600)
         ),
         card_theme=ft.CardTheme(
-            color=ft.Colors.GREY_800, # Color de fondo de las tarjetas
-            surface_tint_color=ft.Colors.GREY_700 # Tinte de superficie
+            color=AppColors.BG_CARD,
+            surface_tint_color=AppColors.BG_ELEVATED
         ),
         list_tile_theme=ft.ListTileTheme(
-            icon_color=ft.Colors.DEEP_PURPLE_200, # Color de íconos en ListTile
-            text_color=ft.Colors.GREY_300 # Color de texto en ListTile
+            icon_color=AppColors.PRIMARY_LIGHT,
+            text_color=AppColors.TEXT_SECONDARY
         )
+    )
+
+# --- Componentes UI Reutilizables ---
+def create_gradient_container(content, colors=None, border_radius=12, padding=20):
+    """Crea un contenedor con efecto de gradiente visual"""
+    if colors is None:
+        colors = [AppColors.PRIMARY_DARK, AppColors.BG_CARD]
+    return ft.Container(
+        content=content,
+        padding=padding,
+        border_radius=border_radius,
+        gradient=ft.LinearGradient(
+            begin=ft.alignment.top_left,
+            end=ft.alignment.bottom_right,
+            colors=colors,
+        ),
+        shadow=ft.BoxShadow(
+            spread_radius=1,
+            blur_radius=15,
+            color=ft.Colors.with_opacity(0.3, AppColors.PRIMARY),
+            offset=ft.Offset(0, 4),
+        ),
+    )
+
+def create_glass_container(content, border_radius=12, padding=15):
+    """Crea un contenedor con efecto glassmorphism"""
+    return ft.Container(
+        content=content,
+        padding=padding,
+        border_radius=border_radius,
+        bgcolor=ft.Colors.with_opacity(0.1, AppColors.TEXT_PRIMARY),
+        border=ft.border.all(1, ft.Colors.with_opacity(0.2, AppColors.TEXT_PRIMARY)),
+        shadow=ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=20,
+            color=ft.Colors.with_opacity(0.1, AppColors.PRIMARY),
+        ),
+    )
+
+def create_action_button(text, icon, color, on_click=None, tooltip="", disabled=False):
+    """Crea un botón de acción estilizado"""
+    return ft.Container(
+        content=ft.ElevatedButton(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(icon, color=AppColors.TEXT_PRIMARY, size=18),
+                    ft.Text(text, weight=ft.FontWeight.W_600, size=13),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=8,
+            ),
+            bgcolor=color,
+            color=AppColors.TEXT_PRIMARY,
+            on_click=on_click,
+            disabled=disabled,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+                padding=ft.Padding(20, 12, 20, 12),
+                elevation=4,
+                animation_duration=200,
+            ),
+        ),
+        tooltip=tooltip,
+    )
+
+def create_stat_card(title, value, icon, color):
+    """Crea una tarjeta de estadística estilizada"""
+    return ft.Container(
+        content=ft.Column(
+            controls=[
+                ft.Container(
+                    content=ft.Icon(icon, color=color, size=28),
+                    padding=10,
+                    border_radius=50,
+                    bgcolor=ft.Colors.with_opacity(0.15, color),
+                ),
+                ft.Text(value, size=24, weight=ft.FontWeight.BOLD, color=AppColors.TEXT_PRIMARY),
+                ft.Text(title, size=12, color=AppColors.TEXT_MUTED),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=5,
+        ),
+        padding=15,
+        border_radius=12,
+        bgcolor=AppColors.BG_CARD,
+        border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.BORDER)),
     )
 
 
@@ -143,11 +265,16 @@ class PDF(FPDF):
         self.chapter_body(texto)
 
 def main(page: ft.Page):
-    page.title = "Consulta de Novelas"
+    page.title = "📚 Novelas Manager"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-    page.theme_mode = ft.ThemeMode.DARK # Activar modo oscuro
-    # Aplicar tema oscuro personalizado
+    page.theme_mode = ft.ThemeMode.DARK
     page.theme = create_dark_theme()
+    page.bgcolor = AppColors.BG_DARK
+    page.padding = 0
+    
+    # Configuración de ventana para mejor apariencia
+    page.window.min_width = 800
+    page.window.min_height = 600
 
     filepicker = ft.FilePicker()
     save_file_path = ft.Text()
@@ -155,52 +282,94 @@ def main(page: ft.Page):
 
     contar_capitulos = 0
     lista_capitulos = []
-    ids_contenido_capitulo = []
+    ids_contenido_capitulo = set()  # Cambiado a set para búsquedas O(1)
+    
+    # --- Variables para paginación de capítulos ---
+    mapa_capitulo_indice = {}  # {cap_id: índice_1based}
+    pagina_capitulos_actual = 1
+    todos_capitulos = []  # Lista completa para EPUB/PDF
+    debounce_timer = None
+    lv_capitulos = None  # Referencia al ListView
+    spinner_paginacion = None  # Mini-spinner para cambios de página
+    total_paginas_capitulos = 1
+    
+    # --- Variables para control de exportación ---
+    cancelar_exportacion = False
+    progreso_exportacion = None  # Referencia a ProgressBar de exportación
+    texto_progreso_exportacion = None  # Referencia a Text de progreso
 
-    txt_number = ft.Text(value="0", text_align=ft.TextAlign.CENTER, size=16, weight=ft.FontWeight.BOLD)
+    txt_number = ft.Text(
+        value="0", 
+        text_align=ft.TextAlign.CENTER, 
+        size=32, 
+        weight=ft.FontWeight.BOLD,
+        color=AppColors.PRIMARY_LIGHT
+    )
 
-    # --- Botones con estilo mejorado para tema oscuro ---
-    # Apply responsive padding and shape styles here
-    btn_epub=ft.ElevatedButton(
-        "Epub",
-        bgcolor=ft.Colors.GREEN_700, # Verde más oscuro para contraste
-        color=ft.Colors.WHITE,
+    # --- Botones con estilo moderno y gradientes ---
+    btn_epub = ft.ElevatedButton(
+        content=ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.BOOK_OUTLINED, color=AppColors.TEXT_PRIMARY, size=20),
+                ft.Text("EPUB", weight=ft.FontWeight.W_700, size=14),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=8,
+        ),
+        bgcolor=AppColors.ACCENT_GREEN,
+        color=AppColors.TEXT_PRIMARY,
         expand=True,
-        icon=ft.Icons.BOOK,
-        icon_color=ft.Colors.WHITE,
-        tooltip="Generar archivo EPUB",
-        # Use ButtonStyle for responsive shape and padding
+        tooltip="📖 Generar archivo EPUB",
         style=ft.ButtonStyle(
-            shape=ft.RoundedRectangleBorder(radius=50), # Circular shape on small screens
-            padding=ft.Padding(10, 15, 10, 15) # Consistent internal spacing
+            shape=ft.RoundedRectangleBorder(radius=12),
+            padding=ft.Padding(16, 14, 16, 14),
+            elevation=6,
+            shadow_color=ft.Colors.with_opacity(0.4, AppColors.ACCENT_GREEN),
+            animation_duration=300,
         )
     )
-    btn_pdf=ft.ElevatedButton(
-        "PDF",
-        bgcolor=ft.Colors.RED_700, # Rojo más oscuro para contraste
-        color=ft.Colors.WHITE,
+    
+    btn_pdf = ft.ElevatedButton(
+        content=ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.PICTURE_AS_PDF_OUTLINED, color=AppColors.TEXT_PRIMARY, size=20),
+                ft.Text("PDF", weight=ft.FontWeight.W_700, size=14),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=8,
+        ),
+        bgcolor=AppColors.ACCENT_RED,
+        color=AppColors.TEXT_PRIMARY,
         expand=True,
-        icon=ft.Icons.PICTURE_AS_PDF,
-        icon_color=ft.Colors.WHITE,
-        tooltip="Generar archivo PDF",
-        # Use ButtonStyle for responsive shape and padding
+        tooltip="📄 Generar archivo PDF",
         style=ft.ButtonStyle(
-            shape=ft.RoundedRectangleBorder(radius=50), # Circular shape on small screens
-            padding=ft.Padding(10, 15, 10, 15) # Consistent internal spacing
+            shape=ft.RoundedRectangleBorder(radius=12),
+            padding=ft.Padding(16, 14, 16, 14),
+            elevation=6,
+            shadow_color=ft.Colors.with_opacity(0.4, AppColors.ACCENT_RED),
+            animation_duration=300,
         )
     )
-    btn_procesar=ft.ElevatedButton(
-        "Procesar",
-        bgcolor=ft.Colors.BLUE_700, # Azul más oscuro para contraste
-        color=ft.Colors.WHITE,
+    
+    btn_procesar = ft.ElevatedButton(
+        content=ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.DOWNLOAD_FOR_OFFLINE_OUTLINED, color=AppColors.TEXT_PRIMARY, size=20),
+                ft.Text("PROCESAR", weight=ft.FontWeight.W_700, size=14),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=8,
+        ),
+        bgcolor=AppColors.PRIMARY,
+        color=AppColors.TEXT_PRIMARY,
         expand=True,
-        icon=ft.Icons.LAUNCH,
-        icon_color=ft.Colors.WHITE,
-        tooltip="Obtener capítulos faltantes",
-        # Use ButtonStyle for responsive shape and padding
+        tooltip="⚡ Obtener capítulos faltantes",
         style=ft.ButtonStyle(
-            shape=ft.RoundedRectangleBorder(radius=50), # Circular shape on small screens
-            padding=ft.Padding(10, 15, 10, 15) # Consistent internal spacing
+            shape=ft.RoundedRectangleBorder(radius=12),
+            padding=ft.Padding(16, 14, 16, 14),
+            elevation=6,
+            shadow_color=ft.Colors.with_opacity(0.4, AppColors.PRIMARY),
+            animation_duration=300,
         )
     )
 
@@ -261,17 +430,29 @@ def main(page: ft.Page):
     def close_banner(e):
         page.close(banner)
 
-    # --- Banner con estilo mejorado para tema oscuro ---
+    # --- Banner con estilo moderno glassmorphism ---
     banner = ft.Banner(
         content=ft.Row([]),
         actions=[
-            ft.TextButton(text="Cerrar", on_click=close_banner),
+            ft.TextButton(
+                text="✕ Cerrar", 
+                on_click=close_banner,
+                style=ft.ButtonStyle(
+                    color=AppColors.TEXT_PRIMARY,
+                )
+            ),
         ],
-        bgcolor=ft.Colors.GREY_800, # Fondo oscuro para el banner
-        surface_tint_color=ft.Colors.DEEP_PURPLE_300 # Tinte del tema primario
+        bgcolor=AppColors.BG_ELEVATED,
+        surface_tint_color=AppColors.PRIMARY,
     )
 
-    progress_ring = ft.ProgressRing(visible=False, stroke_width=5, color=ft.Colors.DEEP_PURPLE_300) # Color del anillo
+    # --- Progress Ring con estilo mejorado ---
+    progress_ring = ft.ProgressRing(
+        visible=False, 
+        stroke_width=4, 
+        color=AppColors.PRIMARY_LIGHT,
+        stroke_cap=ft.StrokeCap.ROUND,
+    )
 
     def open_banner(fondo, icono, contenido):
         banner.bgcolor=fondo
@@ -323,13 +504,14 @@ def main(page: ft.Page):
             _id = enviar_contenido_capitulo(novela_id, capitulo_id, texto_capitulo)
             logger.info(f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}")
             open_banner(
-                ft.Colors.GREEN_900, # Fondo más oscuro para éxito
-                ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.GREEN_300, size=40),
+                AppColors.BG_ELEVATED,
+                ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color=AppColors.ACCENT_GREEN, size=40),
                 [
                     ft.Text(
-                        value=f"Creado, contenido con id:{_id} vinculado a la novela: {capitulo_id}",
-                        color=ft.Colors.WHITE, # Texto blanco
-                        size=14
+                        value=f"✅ Contenido creado con id:{_id}",
+                        color=AppColors.TEXT_PRIMARY,
+                        size=14,
+                        weight=ft.FontWeight.W_500,
                     ),
                 ]
             )
@@ -337,13 +519,13 @@ def main(page: ft.Page):
         else:
             logger.error(f"Error: No se encontró el contenido del capítulo con selector {selector_css}.")
             open_banner(
-                ft.Colors.RED_900, # Fondo más oscuro para error
-                ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
+                AppColors.BG_ELEVATED,
+                ft.Icon(ft.Icons.ERROR_OUTLINE_ROUNDED, color=AppColors.ERROR, size=40),
                 [
                     ft.Text(
-                        value=f"Error: No se encontró el contenido del capítulo con selector {selector_css}.",
-                        color=ft.Colors.WHITE, # Texto blanco
-                        size=14
+                        value=f"❌ No se encontró contenido con selector {selector_css}",
+                        color=AppColors.TEXT_PRIMARY,
+                        size=14,
                     ),
                 ]
             )
@@ -355,17 +537,17 @@ def main(page: ft.Page):
         if not novela_doc:
             logger.error("Error: Novela no encontrada.")
             open_banner(
-                ft.Colors.RED_900, # Fondo más oscuro para error
-                ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
+                AppColors.BG_ELEVATED,
+                ft.Icon(ft.Icons.ERROR_OUTLINE_ROUNDED, color=AppColors.ERROR, size=40),
                 [
                     ft.Text(
-                        value="Error: Novela no encontrada.",
-                        color=ft.Colors.WHITE, # Texto blanco
-                        size=14
+                        value="❌ Novela no encontrada",
+                        color=AppColors.TEXT_PRIMARY,
+                        size=14,
                     ),
                 ]
             )
-            return # Salir si no se encuentra la novela
+            return
 
         sitio_id = novela_doc.get('sitio_id')
 
@@ -384,13 +566,13 @@ def main(page: ft.Page):
         else:
             logger.warning("Validar sitio para manejar driver no es FANMTL.com o tunovelaligera.com")
             open_banner(
-                ft.Colors.AMBER_900, # Fondo más oscuro para advertencia
-                ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.AMBER_300, size=40),
+                AppColors.BG_ELEVATED,
+                ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=AppColors.WARNING, size=40),
                 [
                     ft.Text(
-                        value="Validar sitio para manejar driver no es FANMTL.com o tunovelaligera.com",
-                        color=ft.Colors.WHITE, # Texto blanco
-                        size=14
+                        value="⚠️ Sitio no soportado: FANMTL.com o tunovelaligera.com",
+                        color=AppColors.TEXT_PRIMARY,
+                        size=14,
                     ),
                 ]
             )
@@ -431,351 +613,397 @@ def main(page: ft.Page):
         """Elimina caracteres no válidos para nombres de archivo"""
         return "".join(c for c in nombre if c.isalnum() or c in (' ', '_', '-')).rstrip()
 
-    def crearepub(novela, capitulos):
+    # ============================================================
+    # FUNCIONES AUXILIARES PARA EXPORTACIÓN (EPUB/PDF)
+    # ============================================================
+    
+    def obtener_contenido_capitulos(novela_id):
+        """Obtiene el contenido de todos los capítulos de una novela desde BD."""
+        return {
+            str(x['capitulo_id']): x['texto']
+            for x in collection_contenido_capitulos.find(
+                {'novela_id': str(novela_id)}
+            ).sort('created_at', 1)
+        }
+    
+    def descargar_y_preparar_portada(url):
+        """
+        Descarga imagen y retorna (ruta_temporal, bytes).
+        Raises: Exception si falla la descarga.
+        """
+        portada = descargar_imagen(url)
+        if not portada or not os.path.exists(portada):
+            raise Exception("Error al obtener la portada")
+        
+        with open(portada, 'rb') as f:
+            portada_bytes = f.read()
+        
+        return portada, portada_bytes
+    
+    def preparar_ui_exportacion(formato):
+        """Prepara UI para exportación: deshabilita botones, muestra progreso."""
+        global cancelar_exportacion, progreso_exportacion, texto_progreso_exportacion
+        cancelar_exportacion = False
+        
         progress_ring.visible = True
         btn_epub.disabled = True
         btn_pdf.disabled = True
+        btn_procesar.disabled = True
+        
+        # Crear componentes de progreso si no existen
+        progreso_exportacion = ft.ProgressBar(
+            value=0,
+            color=AppColors.ACCENT_GREEN if formato == 'epub' else AppColors.ACCENT_RED,
+            bgcolor=AppColors.BG_ELEVATED,
+        )
+        texto_progreso_exportacion = ft.Text(
+            value=f"📦 Preparando {formato.upper()}...",
+            size=11,
+            color=AppColors.TEXT_MUTED,
+            text_align=ft.TextAlign.CENTER,
+        )
         page.update()
-
-        try:
-            contenido_capitulos_novela = {
-                str(x['capitulo_id']): x['texto']
-                for x in collection_contenido_capitulos.find(
-                    {'novela_id': str(novela['_id'])}
-                ).sort('created_at', 1) # Corrección: Usar argumentos separados
-            }
-
-            # Descargar portada
-            portada = descargar_imagen(novela['imagen_url'])
-            if not portada or not os.path.exists(portada):
-                raise Exception("Error al obtener la portada")
-
-            with open(portada, 'rb') as img_file:
-                base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
-
-            book = epub.EpubBook()
-
-            # Metadatos
-            book.set_identifier(str(novela['_id']))
-            book.set_title(novela['nombre'])
-            book.set_language('es')
-            book.add_author(novela['autor'])
-
-            # Añadir portada
-            with open(portada, 'rb') as f:
-                book.set_cover('cover.jpg', f.read())
-
-            # --- Sección de Introducción Mejorada ---
-            # Traducir con respaldo (solo para nombre y sinopsis, como en PDF)
-            nombre_traducido = traducir(novela['nombre']) or novela['nombre']
-            sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
-
-            # Crear contenido HTML para la introducción, incluyendo todos los detalles
-            etiquetas = {
-                '_id': 'Novela ID',
-                'nombre': 'Nombre Novela', # Usamos nombre_traducido
-                'sinopsis': 'Sinopsis Novela', # Usamos sinopsis_traducida
-                'autor': 'Autor Novela',
-                'genero': 'Géneros Novela',
-                'status': 'Status Novela',
-                'url': 'Url Novela',
-                'imagen_url': 'Url Imagen Novela',
-                'created_at': 'Fecha Creación en Base de Datos',
-                'updated_at': 'Fecha Modificación en Base de Datos',
-            }
-
-            intro_html = f"""
-            <h1>{nombre_traducido}</h1>
-            <img src="image/jpeg;base64,{base64_cover}"
-                style="width: 300px; height: auto; margin: 0 auto; display: block;">
-            <h2>Detalles de la Novela</h2>
-            <table style="width:100%; border-collapse: collapse;">
-            <tr><td style="font-weight:bold;">{etiquetas['_id']}</td><td>{novela.get('_id', 'N/A')}</td></tr>
-            <tr><td style="font-weight:bold;">{etiquetas['nombre']}</td><td>{nombre_traducido}</td></tr>
-            <tr><td style="font-weight:bold; vertical-align:top;">{etiquetas['sinopsis']}</td><td>{sinopsis_traducida}</td></tr>
-            <tr><td style="font-weight:bold;">{etiquetas['autor']}</td><td>{novela.get('autor', 'N/A')}</td></tr>
-            <tr><td style="font-weight:bold;">{etiquetas['genero']}</td><td>{novela.get('genero', 'N/A')}</td></tr>
-            <tr><td style="font-weight:bold;">{etiquetas['status']}</td><td>{novela.get('status', 'N/A')}</td></tr>
-            <tr><td style="font-weight:bold;">{etiquetas['url']}</td><td><a href="{novela.get('url', '#')}">{novela.get('url', 'N/A')}</a></td></tr>
-            <tr><td style="font-weight:bold;">{etiquetas['imagen_url']}</td><td><a href="{novela.get('imagen_url', '#')}">Ver Imagen</a></td></tr>
-            <tr><td style="font-weight:bold;">{etiquetas['created_at']}</td><td>{novela.get('created_at', 'N/A').strftime('%Y-%m-%d %H:%M:%S') if isinstance(novela.get('created_at'), datetime) else novela.get('created_at', 'N/A')}</td></tr>
-            <tr><td style="font-weight:bold;">{etiquetas['updated_at']}</td><td>{novela.get('updated_at', 'N/A').strftime('%Y-%m-%d %H:%M:%S') if isinstance(novela.get('updated_at'), datetime) else novela.get('updated_at', 'N/A')}</td></tr>
-            </table>
-            """
-
-            intro = epub.EpubHtml(
-                title='Introducción',
-                file_name='intro.xhtml',
-                lang='es',
-            )
-            intro.content = intro_html
-            book.add_item(intro)
-
-            # --- Fin de la Introducción Mejorada ---
-
-            # Capítulos
-            chapters = [intro] # Incluir la intro en el spine y TOC
-            zfill_length = len(str(len(capitulos)))
-            for idx, capitulo in enumerate(capitulos, 1):
-                nombre_capitulo = capitulo['nombre']
-                # Obtener contenido con valor por defecto
-                contenido = contenido_capitulos_novela.get(str(capitulo['_id']), '')
-
-                chapter = epub.EpubHtml(
-                    title=nombre_capitulo,
-                    file_name=f'cap_{idx:0{zfill_length}}.xhtml',
-                    lang='es',
-                )
-                chapter.content = f"<h1>{nombre_capitulo}</h1>{contenido}"
-                book.add_item(chapter)
-                chapters.append(chapter)
-
-                open_banner(
-                    ft.Colors.GREEN_900, # Fondo más oscuro para éxito
-                    ft.Icon(ft.Icons.CHECK, color=ft.Colors.GREEN_300, size=40),
-                    [
-                        ft.Text(
-                            value=f"{nombre_capitulo} a sido añadido al archivo",
-                            color=ft.Colors.WHITE, # Texto blanco
-                            size=14
-                        ),
-                    ]
-                )
-                page.update()
-
-            # Capítulo de Notas
-            notas = epub.EpubHtml(
-                title='Notas',
-                file_name='notas.xhtml',
-                lang='es',
-            )
-            notas.content = "<h1>Notas</h1><p>Notas adicionales...</p>"
-            book.add_item(notas)
-
-            # Estructura del libro
-            book.toc = (
-                epub.Link('intro.xhtml', 'Introducción', 'intro'),
-                (epub.Section('Capítulos'), chapters[1:]),  # Excluir intro duplicada del TOC de capítulos
-                (epub.Section('Apéndices'), [notas])
-            )
-            # Spine correcto (intro + capítulos + notas)
-            book.spine = chapters + [notas] # chapters ya incluye intro
-
-            # Añadir componentes estándar
-            book.add_item(epub.EpubNcx())
-            book.add_item(epub.EpubNav())
-
-            # CSS (mejorar compatibilidad)
-            style = """
-            body { font-family: serif; }
-            h1 { font-size: 1.8em; }
-            h2 { font-size: 1.4em; }
-            table { border: 1px solid #ccc; margin-top: 1em; }
-            td { border: 1px solid #ccc; padding: 5px; }
-            """
-            css = epub.EpubItem(
-                uid="style_css",
-                file_name="style/style.css",
-                content=style
-            )
-            book.add_item(css)
-
-            # Guardar
-            nombre_archivo = sanitizar_nombre(novela['nombre']) + '.epub'
-
-            def save_file_result(e: ft.FilePickerResultEvent):
-                try:
-                    # Verificar si el usuario canceló
-                    if e.path is None:
-                        logger.warning("Operación cancelada")
-                        open_banner(
-                            ft.Colors.YELLOW_900, # Fondo más oscuro para advertencia
-                            ft.Icon(ft.Icons.WARNING, color=ft.Colors.AMBER_300, size=40),
-                            [ft.Text(value="Operación cancelada", color=ft.Colors.WHITE, size=14)] # Texto blanco
-                        )
-                        return
-
-                    # Guardar el EPUB en la ruta seleccionada
-                    epub.write_epub(e.path, book, {})
-                    logger.info(f"EPUB guardado en: {e.path}")
-                    # Mostrar confirmación
-                    open_banner(
-                        ft.Colors.GREEN_900, # Fondo más oscuro para éxito
-                        ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_300, size=40),
-                        [ft.Text(value=f"EPUB guardado en: {e.path}", color=ft.Colors.WHITE, size=14)] # Texto blanco
-                    )
-                except PermissionError as pe:
-                    logger.error(f"Error de permisos al guardar EPUB: {pe}")
-                    open_banner(
-                        ft.Colors.RED_900, # Fondo más oscuro para error
-                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
-                        [ft.Text(value="Error: Permisos denegados para guardar el archivo", color=ft.Colors.WHITE, size=14)] # Texto blanco
-                    )
-                except Exception as e:
-                    logger.error(f"Error al guardar EPUB: {str(e)}")
-                    open_banner(
-                        ft.Colors.RED_900, # Fondo más oscuro para error
-                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
-                        [ft.Text(value=f"Error al guardar: {str(e)}", color=ft.Colors.WHITE, size=14)] # Texto blanco
-                    )
-                finally:
-                    # Limpiar archivo temporal
-                    if portada and os.path.exists(portada):
-                        try:
-                            os.remove(portada)
-                            logger.info("Archivo temporal de portada eliminado.")
-                        except OSError as oe:
-                            logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
-
-            # Dentro de tu función crearepub:
-            filepicker.on_result = save_file_result
-            filepicker.save_file(file_name=nombre_archivo, allowed_extensions=["epub"])
-
-        except Exception as e:
-            logger.error(f"Error en crearepub: {str(e)}")
-            open_banner(
-                ft.Colors.RED_900, # Fondo más oscuro para error
-                ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
-                [
-                    ft.Text(
-                        value=f"Error: {str(e)}",
-                        color=ft.Colors.WHITE, # Texto blanco
-                        size=14
-                    ),
-                ]
-            )
-        finally:
-            progress_ring.visible=False
-            btn_epub.disabled = False
-            btn_pdf.disabled = False
+    
+    def actualizar_progreso_exportacion(idx, total, nombre, formato):
+        """Actualiza progreso de exportación (cada 5 capítulos o al final)."""
+        global progreso_exportacion, texto_progreso_exportacion
+        
+        porcentaje = idx / total if total > 0 else 0
+        emoji = "📖" if formato == 'epub' else "📄"
+        
+        if progreso_exportacion:
+            progreso_exportacion.value = porcentaje
+        if texto_progreso_exportacion:
+            texto_progreso_exportacion.value = f"{emoji} [{idx}/{total}] {nombre[:35]}..."
+        
+        # Actualizar UI solo cada 5 capítulos o al final para mejor rendimiento
+        if idx % 5 == 0 or idx == total:
             page.update()
+    
+    def finalizar_ui_exportacion(portada_path=None):
+        """Restaura UI después de exportación y limpia recursos."""
+        global cancelar_exportacion
+        cancelar_exportacion = False
+        
+        progress_ring.visible = False
+        btn_epub.disabled = False
+        btn_pdf.disabled = False
+        btn_procesar.disabled = False
+        
+        # Limpiar archivo temporal de portada
+        if portada_path and os.path.exists(portada_path):
+            try:
+                os.remove(portada_path)
+                logger.info("Archivo temporal de portada eliminado.")
+            except OSError as oe:
+                logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
+        
+        page.update()
+    
+    def limpiar_portada_temporal(portada_path):
+        """Limpia archivo temporal de portada."""
+        if portada_path and os.path.exists(portada_path):
+            try:
+                os.remove(portada_path)
+                logger.info("Archivo temporal de portada eliminado.")
+            except OSError as oe:
+                logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
+
+    # ============================================================
+    # FUNCIONES DE PAGINACIÓN DE CAPÍTULOS
+    # ============================================================
+    
+    def calcular_visibilidad_capitulo(cap_id):
+        """
+        Calcula si un capítulo está visible en la página actual.
+        Retorna: (es_visible, indice_relativo) donde indice_relativo es 0-based para lista
+        """
+        global mapa_capitulo_indice, pagina_capitulos_actual
+        
+        indice_global = mapa_capitulo_indice.get(str(cap_id), 0)  # 1-based
+        if indice_global == 0:
+            return (False, -1)
+        
+        inicio = (pagina_capitulos_actual - 1) * CAPITULOS_POR_PAGINA + 1  # 1-based
+        fin = inicio + CAPITULOS_POR_PAGINA - 1
+        
+        es_visible = inicio <= indice_global <= fin
+        indice_relativo = (indice_global - inicio) if es_visible else -1  # 0-based para lista
+        
+        return (es_visible, indice_relativo)
+
+    def crearepub(novela, capitulos):
+        """Genera archivo EPUB en hilo separado con progreso visual y opción de cancelación."""
+        nonlocal cancelar_exportacion
+        portada = None  # Para limpieza en finally
+        
+        def _epub_worker():
+            nonlocal portada, cancelar_exportacion
+            try:
+                # Preparar UI
+                progress_ring.visible = True
+                btn_epub.disabled = True
+                btn_pdf.disabled = True
+                btn_procesar.disabled = True
+                page.update()
+                
+                # Obtener contenido de BD
+                contenido_capitulos_novela = obtener_contenido_capitulos(novela['_id'])
+                
+                # Verificar cancelación
+                if cancelar_exportacion:
+                    raise Exception("Exportación cancelada por el usuario")
+                
+                # Descargar portada (una sola lectura)
+                portada, portada_bytes = descargar_y_preparar_portada(novela['imagen_url'])
+                base64_cover = base64.b64encode(portada_bytes).decode('utf-8')
+                
+                # Crear libro EPUB
+                book = epub.EpubBook()
+                book.set_identifier(str(novela['_id']))
+                book.set_title(novela['nombre'])
+                book.set_language('es')
+                book.add_author(novela['autor'])
+                book.set_cover('cover.jpg', portada_bytes)  # Usar bytes ya leídos
+                
+                # Traducciones
+                nombre_traducido = traducir(novela['nombre']) or novela['nombre']
+                sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
+                
+                # Introducción con formato base64 corregido
+                intro_html = f"""
+                <h1>{nombre_traducido}</h1>
+                <img src="data:image/jpeg;base64,{base64_cover}"
+                    style="width: 300px; height: auto; margin: 0 auto; display: block;">
+                <h2>Detalles de la Novela</h2>
+                <table style="width:100%; border-collapse: collapse;">
+                <tr><td style="font-weight:bold;">Novela ID</td><td>{novela.get('_id', 'N/A')}</td></tr>
+                <tr><td style="font-weight:bold;">Nombre</td><td>{nombre_traducido}</td></tr>
+                <tr><td style="font-weight:bold; vertical-align:top;">Sinopsis</td><td>{sinopsis_traducida}</td></tr>
+                <tr><td style="font-weight:bold;">Autor</td><td>{novela.get('autor', 'N/A')}</td></tr>
+                <tr><td style="font-weight:bold;">Género</td><td>{novela.get('genero', 'N/A')}</td></tr>
+                <tr><td style="font-weight:bold;">Estado</td><td>{novela.get('status', 'N/A')}</td></tr>
+                <tr><td style="font-weight:bold;">URL</td><td><a href="{novela.get('url', '#')}">{novela.get('url', 'N/A')}</a></td></tr>
+                <tr><td style="font-weight:bold;">Creado</td><td>{novela.get('created_at', 'N/A').strftime('%Y-%m-%d %H:%M:%S') if isinstance(novela.get('created_at'), datetime) else 'N/A'}</td></tr>
+                </table>
+                """
+                
+                intro = epub.EpubHtml(title='Introducción', file_name='intro.xhtml', lang='es')
+                intro.content = intro_html
+                book.add_item(intro)
+                
+                # Procesar capítulos con progreso
+                chapters = [intro]
+                total = len(capitulos)
+                zfill_length = len(str(total))
+                
+                for idx, capitulo in enumerate(capitulos, 1):
+                    # Verificar cancelación
+                    if cancelar_exportacion:
+                        raise Exception("Exportación cancelada por el usuario")
+                    
+                    nombre_capitulo = capitulo['nombre']
+                    contenido = contenido_capitulos_novela.get(str(capitulo['_id']), '')
+                    
+                    chapter = epub.EpubHtml(
+                        title=nombre_capitulo,
+                        file_name=f'cap_{idx:0{zfill_length}}.xhtml',
+                        lang='es',
+                    )
+                    chapter.content = f"<h1>{nombre_capitulo}</h1>{contenido}"
+                    book.add_item(chapter)
+                    chapters.append(chapter)
+                    
+                    # Actualizar progreso (cada 5 capítulos para rendimiento)
+                    if idx % 5 == 0 or idx == total:
+                        open_banner(
+                            AppColors.BG_ELEVATED,
+                            ft.Icon(ft.Icons.BOOK_OUTLINED, color=AppColors.ACCENT_GREEN, size=40),
+                            [ft.Text(value=f"📖 [{idx}/{total}] {nombre_capitulo[:40]}...", color=AppColors.TEXT_PRIMARY, size=12)]
+                        )
+                        page.update()
+                
+                # Notas y estructura
+                notas = epub.EpubHtml(title='Notas', file_name='notas.xhtml', lang='es')
+                notas.content = "<h1>Notas</h1><p>Generado con Novelas Manager</p>"
+                book.add_item(notas)
+                
+                book.toc = (
+                    epub.Link('intro.xhtml', 'Introducción', 'intro'),
+                    (epub.Section('Capítulos'), chapters[1:]),
+                    (epub.Section('Apéndices'), [notas])
+                )
+                book.spine = chapters + [notas]
+                book.add_item(epub.EpubNcx())
+                book.add_item(epub.EpubNav())
+                
+                # CSS
+                css = epub.EpubItem(
+                    uid="style_css", file_name="style/style.css",
+                    content="body{font-family:serif;}h1{font-size:1.8em;}table{border:1px solid #ccc;margin:1em 0;}td{border:1px solid #ccc;padding:5px;}"
+                )
+                book.add_item(css)
+                
+                # Guardar
+                nombre_archivo = sanitizar_nombre(novela['nombre']) + '.epub'
+                
+                def save_file_result(e: ft.FilePickerResultEvent):
+                    try:
+                        if e.path is None:
+                            open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, color=AppColors.WARNING, size=40),
+                                       [ft.Text(value="⚠️ Operación cancelada", color=AppColors.TEXT_PRIMARY, size=14)])
+                            return
+                        
+                        epub.write_epub(e.path, book, {})
+                        logger.info(f"EPUB guardado en: {e.path}")
+                        open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color=AppColors.ACCENT_GREEN, size=40),
+                                   [ft.Text(value="✅ EPUB guardado exitosamente", color=AppColors.TEXT_PRIMARY, size=14, weight=ft.FontWeight.W_500)])
+                    except PermissionError:
+                        open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.LOCK_ROUNDED, color=AppColors.ERROR, size=40),
+                                   [ft.Text(value="🔒 Error: Permisos denegados", color=AppColors.TEXT_PRIMARY, size=14)])
+                    except Exception as ex:
+                        logger.error(f"Error al guardar EPUB: {str(ex)}")
+                        open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.ERROR_OUTLINE_ROUNDED, color=AppColors.ERROR, size=40),
+                                   [ft.Text(value=f"❌ Error: {str(ex)[:50]}", color=AppColors.TEXT_PRIMARY, size=14)])
+                    finally:
+                        limpiar_portada_temporal(portada)
+                        page.update()
+                
+                filepicker.on_result = save_file_result
+                filepicker.save_file(file_name=nombre_archivo, allowed_extensions=["epub"])
+                
+            except Exception as e:
+                logger.error(f"Error en crearepub: {str(e)}")
+                open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.ERROR_OUTLINE_ROUNDED, color=AppColors.ERROR, size=40),
+                           [ft.Text(value=f"❌ Error: {str(e)[:60]}", color=AppColors.TEXT_PRIMARY, size=14)])
+                limpiar_portada_temporal(portada)
+            finally:
+                progress_ring.visible = False
+                btn_epub.disabled = False
+                btn_pdf.disabled = False
+                btn_procesar.disabled = False
+                page.update()
+        
+        # Ejecutar en hilo separado
+        threading.Thread(target=_epub_worker, daemon=True).start()
 
     def crearpdf(novela, capitulos):
-        progress_ring.visible = True
-        btn_epub.disabled = True
-        btn_pdf.disabled = True
-        page.update()
-
-        try:
-            # Obtener contenido de la base de datos
-            contenido_capitulos_novela = {
-                str(x['capitulo_id']): x['texto']
-                for x in collection_contenido_capitulos.find(
-                    {'novela_id': str(novela['_id'])}
-                ).sort('created_at', 1) # Corrección: Usar argumentos separados
-            }
-
-            # Descargar portada
-            portada = descargar_imagen(novela['imagen_url'])
-            if not portada or not os.path.exists(portada):
-                raise Exception("Error al obtener la portada")
-
-            # Convertir imagen a base64
-            with open(portada, 'rb') as img_file:
-                base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
-
-            # Traducciones
-            nombre_traducido = traducir(novela['nombre']) or novela['nombre']
-            sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
-
-            pdf = PDF(orientation='P', unit='mm', format='A4')
-            pdf.add_font('Poppins-Regular', '', PINGO_FONT_PATH, uni=True)
-            pdf.set_font('Poppins-Regular', size=12)
-            pdf.set_title(nombre_traducido)
-            pdf.set_author(novela['autor'])
-            pdf.set_creator('David Eliceo Vite Vergara')
-
-            # Habilitar reemplazo de {{nb}} en el pie de página
-            pdf.alias_nb_pages()
-
-            pdf.add_page()
-            pdf.chapter_title(nombre_traducido)
-            pdf.image(name=portada, x=pdf.epw / 3, w=75)
-            pdf.write_html(text="<h5>Resumen:</h5>")
-            pdf.write_html(text=f"<p>{sinopsis_traducida}</p>")
-            pdf.write(text=f"Url de Novela: {novela['url']}")
-
-            # Añadir capítulos
-            for idx, capitulo in enumerate(capitulos, 1):
-                capitulo_id = str(capitulo['_id'])
-                nombre_capitulo = capitulo['nombre']
-                contenido = contenido_capitulos_novela.get(capitulo_id, '')
-
-                pdf.print_chapter(f"{nombre_capitulo}", f"{contenido}")
-
-                # Actualizar UI
-                open_banner(
-                    ft.Colors.GREEN_900, # Fondo más oscuro para éxito
-                    ft.Icon(ft.Icons.CHECK, color=ft.Colors.GREEN_300, size=40),
-                    [ft.Text(value=f"{nombre_capitulo} añadido al PDF", color=ft.Colors.WHITE, size=14)] # Texto blanco
-                )
+        """Genera archivo PDF en hilo separado con progreso visual y opción de cancelación."""
+        nonlocal cancelar_exportacion
+        portada = None  # Para limpieza en finally
+        
+        def _pdf_worker():
+            nonlocal portada, cancelar_exportacion
+            try:
+                # Preparar UI
+                progress_ring.visible = True
+                btn_epub.disabled = True
+                btn_pdf.disabled = True
+                btn_procesar.disabled = True
                 page.update()
-
-            # Guardar archivo
-            nombre_archivo = sanitizar_nombre(novela['nombre']) + '.pdf'
-
-            def save_file_result(e: ft.FilePickerResultEvent):
-                try:
-                    if e.path is None:
-                        logger.warning("Operación cancelada")
+                
+                # Obtener contenido de BD
+                contenido_capitulos_novela = obtener_contenido_capitulos(novela['_id'])
+                
+                # Verificar cancelación
+                if cancelar_exportacion:
+                    raise Exception("Exportación cancelada por el usuario")
+                
+                # Descargar portada (una sola lectura)
+                portada, _ = descargar_y_preparar_portada(novela['imagen_url'])
+                
+                # Traducciones
+                nombre_traducido = traducir(novela['nombre']) or novela['nombre']
+                sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
+                
+                # Crear PDF
+                pdf = PDF(orientation='P', unit='mm', format='A4')
+                pdf.add_font('Poppins-Regular', '', PINGO_FONT_PATH, uni=True)
+                pdf.set_font('Poppins-Regular', size=12)
+                pdf.set_title(nombre_traducido)
+                pdf.set_author(novela['autor'])
+                pdf.set_creator('Novelas Manager - David Eliceo Vite Vergara')
+                pdf.alias_nb_pages()
+                
+                # Página inicial con portada
+                pdf.add_page()
+                pdf.chapter_title(nombre_traducido)
+                pdf.image(name=portada, x=pdf.epw / 3, w=75)
+                pdf.write_html(text="<h5>Resumen:</h5>")
+                pdf.write_html(text=f"<p>{sinopsis_traducida}</p>")
+                pdf.write(text=f"Url de Novela: {novela['url']}")
+                
+                # Procesar capítulos con progreso
+                total = len(capitulos)
+                
+                for idx, capitulo in enumerate(capitulos, 1):
+                    # Verificar cancelación
+                    if cancelar_exportacion:
+                        raise Exception("Exportación cancelada por el usuario")
+                    
+                    capitulo_id = str(capitulo['_id'])
+                    nombre_capitulo = capitulo['nombre']
+                    contenido = contenido_capitulos_novela.get(capitulo_id, '')
+                    
+                    pdf.print_chapter(f"{nombre_capitulo}", f"{contenido}")
+                    
+                    # Actualizar progreso (cada 5 capítulos para rendimiento)
+                    if idx % 5 == 0 or idx == total:
                         open_banner(
-                            ft.Colors.YELLOW_900, # Fondo más oscuro para advertencia
-                            ft.Icon(ft.Icons.WARNING, color=ft.Colors.AMBER_300, size=40),
-                            [ft.Text(value="Operación cancelada", color=ft.Colors.WHITE, size=14)] # Texto blanco
+                            AppColors.BG_ELEVATED,
+                            ft.Icon(ft.Icons.PICTURE_AS_PDF_OUTLINED, color=AppColors.ACCENT_GREEN, size=40),
+                            [ft.Text(value=f"📄 [{idx}/{total}] {nombre_capitulo[:40]}...", color=AppColors.TEXT_PRIMARY, size=12)]
                         )
-                        return
-
-                    with open(e.path, 'wb') as filepdf:
-                        pdf.output(filepdf)
-
-                    logger.info(f"PDF guardado en: {e.path}")
-                    open_banner(
-                        ft.Colors.GREEN_900, # Fondo más oscuro para éxito
-                        ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_300, size=40),
-                        [ft.Text(value=f"PDF guardado en: {e.path}", color=ft.Colors.WHITE, size=14)] # Texto blanco
-                    )
-                except PermissionError as pe:
-                    logger.error(f"Error de permisos al guardar PDF: {pe}")
-                    open_banner(
-                        ft.Colors.RED_900, # Fondo más oscuro para error
-                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
-                        [ft.Text(value="Error: Permisos denegados", color=ft.Colors.WHITE, size=14)] # Texto blanco
-                    )
-                except Exception as ex:
-                    logger.error(f"Error al guardar PDF: {str(ex)}")
-                    open_banner(
-                        ft.Colors.RED_900, # Fondo más oscuro para error
-                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
-                        [ft.Text(value=f"Error: {str(ex)}", color=ft.Colors.WHITE, size=14)] # Texto blanco
-                    )
-                finally:
-                    # Limpiar archivo temporal
-                    if portada and os.path.exists(portada):
-                        try:
-                            os.remove(portada)
-                            logger.info("Archivo temporal de portada eliminado.")
-                        except OSError as oe:
-                            logger.warning(f"No se pudo eliminar el archivo temporal: {oe}")
-
-            filepicker.on_result = save_file_result
-            filepicker.save_file(file_name=nombre_archivo, allowed_extensions=["pdf"])
-
-        except Exception as e:
-            logger.error(f"Error en crearpdf: {str(e)}")
-            open_banner(
-                ft.Colors.RED_900, # Fondo más oscuro para error
-                ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
-                [ft.Text(value=f"Error: {str(e)}", color=ft.Colors.WHITE, size=14)] # Texto blanco
-            )
-        finally:
-            progress_ring.visible = False
-            btn_epub.disabled = False
-            btn_pdf.disabled = False
-            page.update()
+                        page.update()
+                
+                # Guardar
+                nombre_archivo = sanitizar_nombre(novela['nombre']) + '.pdf'
+                
+                def save_file_result(e: ft.FilePickerResultEvent):
+                    try:
+                        if e.path is None:
+                            open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, color=AppColors.WARNING, size=40),
+                                       [ft.Text(value="⚠️ Operación cancelada", color=AppColors.TEXT_PRIMARY, size=14)])
+                            return
+                        
+                        with open(e.path, 'wb') as filepdf:
+                            pdf.output(filepdf)
+                        
+                        logger.info(f"PDF guardado en: {e.path}")
+                        open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color=AppColors.ACCENT_GREEN, size=40),
+                                   [ft.Text(value="✅ PDF guardado exitosamente", color=AppColors.TEXT_PRIMARY, size=14, weight=ft.FontWeight.W_500)])
+                    except PermissionError:
+                        open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.LOCK_ROUNDED, color=AppColors.ERROR, size=40),
+                                   [ft.Text(value="🔒 Error: Permisos denegados", color=AppColors.TEXT_PRIMARY, size=14)])
+                    except Exception as ex:
+                        logger.error(f"Error al guardar PDF: {str(ex)}")
+                        open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.ERROR_OUTLINE_ROUNDED, color=AppColors.ERROR, size=40),
+                                   [ft.Text(value=f"❌ Error: {str(ex)[:50]}", color=AppColors.TEXT_PRIMARY, size=14)])
+                    finally:
+                        limpiar_portada_temporal(portada)
+                        page.update()
+                
+                filepicker.on_result = save_file_result
+                filepicker.save_file(file_name=nombre_archivo, allowed_extensions=["pdf"])
+                
+            except Exception as e:
+                logger.error(f"Error en crearpdf: {str(e)}")
+                open_banner(AppColors.BG_ELEVATED, ft.Icon(ft.Icons.ERROR_OUTLINE_ROUNDED, color=AppColors.ERROR, size=40),
+                           [ft.Text(value=f"❌ Error: {str(e)[:60]}", color=AppColors.TEXT_PRIMARY, size=14)])
+                limpiar_portada_temporal(portada)
+            finally:
+                progress_ring.visible = False
+                btn_epub.disabled = False
+                btn_pdf.disabled = False
+                btn_procesar.disabled = False
+                page.update()
+        
+        # Ejecutar en hilo separado
+        threading.Thread(target=_pdf_worker, daemon=True).start()
 
     def show_loading():
         AppState.loading = True
-        page.splash = ft.ProgressBar(color=ft.Colors.DEEP_PURPLE_300) # Color del indicador de carga
+        page.splash = ft.ProgressBar(color=AppColors.PRIMARY_LIGHT, bgcolor=AppColors.BG_ELEVATED)
         page.update()
 
     def hide_loading():
@@ -841,12 +1069,12 @@ def main(page: ft.Page):
             return {} # Devolver un diccionario vacío en caso de error
 
     def load_ids_contenido_capitulos_novela(novela_id):
+        """Retorna un set de IDs de capítulos con contenido descargado para búsquedas O(1)"""
         try:
-            # Corrección: Usar argumentos separados para sort y projection correctamente
-            return [str(contenido['capitulo_id']) for contenido in collection_contenido_capitulos.find({'novela_id': novela_id}, {'capitulo_id': 1, '_id': 0}).sort('created_at', 1)]
+            return {str(contenido['capitulo_id']) for contenido in collection_contenido_capitulos.find({'novela_id': novela_id}, {'capitulo_id': 1, '_id': 0}).sort('created_at', 1)}
         except Exception as e:
             logger.error(f"Error loading ids contenido capitulos novela details: {e}")
-            return [] # Devolver una lista vacía en caso de error
+            return set()  # Devolver un conjunto vacío en caso de error
 
     def comparar_diccionarios(dic1, dic2):
         return [x for x in dic1 if x not in dic2]
@@ -863,6 +1091,8 @@ def main(page: ft.Page):
         global contar_capitulos
         global lista_capitulos
         global ids_contenido_capitulo # Asegurarse de usar la global
+        global mapa_capitulo_indice
+        global pagina_capitulos_actual
         progress_ring.visible = True
         page.update()
 
@@ -877,27 +1107,48 @@ def main(page: ft.Page):
                         try:
                             driver.get(urls_capitulos[cap])
                             manejar_driver_capitulos(driver, novela_id, str(cap))
-                            # Actualizar UI
-                            if contar_capitulos < len(lista_capitulos):
-                                lista_capitulos[contar_capitulos].leading=ft.Icon(name=ft.Icons.CHECK, col=1, color=ft.Colors.GREEN_300)
-                            contar_capitulos +=1
-                            txt_number.value = str(contar_capitulos) # Convertir a string
-                            ids_contenido_capitulo.append(str(cap)) # Corrección: usar cap en lugar de id
+                            
+                            # Actualizar siempre el contador y el set
+                            contar_capitulos += 1
+                            txt_number.value = str(contar_capitulos)
+                            ids_contenido_capitulo.add(str(cap))  # Usar .add() para set
+                            
+                            # Actualizar UI solo si el capítulo es visible en la página actual
+                            es_visible, idx_rel = calcular_visibilidad_capitulo(str(cap))
+                            if es_visible and 0 <= idx_rel < len(lista_capitulos):
+                                # Actualizar el ícono del capítulo descargado
+                                container = lista_capitulos[idx_rel]
+                                if hasattr(container, 'content') and hasattr(container.content, 'controls'):
+                                    row_controls = container.content.controls
+                                    if len(row_controls) >= 3:
+                                        # Actualizar el contenedor del número
+                                        row_controls[0].bgcolor = AppColors.ACCENT_GREEN
+                                        row_controls[0].content.color = AppColors.TEXT_PRIMARY
+                                        # Actualizar el texto del capítulo
+                                        if hasattr(row_controls[1], 'controls') and len(row_controls[1].controls) > 0:
+                                            row_controls[1].controls[0].color = AppColors.TEXT_PRIMARY
+                                        # Actualizar el ícono de estado
+                                        row_controls[2].name = ft.Icons.CHECK_CIRCLE_ROUNDED
+                                        row_controls[2].color = AppColors.ACCENT_GREEN
+                                        # Actualizar fondo del contenedor
+                                        container.bgcolor = ft.Colors.with_opacity(0.05, AppColors.ACCENT_GREEN)
+                                        container.border = ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.ACCENT_GREEN))
+                            
                             page.update()
-                            break # Salir del bucle de reintentos si tiene éxito
+                            break
                         except requests.exceptions.RequestException as re:
                             intento += 1
                             logger.warning(f"Intento {intento} fallido para capítulo {cap} (Error de red): {re}")
                             if intento == max_intentos:
                                 logger.error(f"Error persistente de red al obtener capítulo {cap}")
                                 open_banner(
-                                    ft.Colors.RED_900, # Fondo más oscuro para error
-                                    ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
+                                    AppColors.BG_ELEVATED,
+                                    ft.Icon(ft.Icons.WIFI_OFF_ROUNDED, color=AppColors.ERROR, size=40),
                                     [
                                         ft.Text(
-                                            value=f"Error de red persistente al obtener capítulo {cap}",
-                                            color=ft.Colors.WHITE, # Texto blanco
-                                            size=14
+                                            value=f"📡 Error de red en capítulo {cap}",
+                                            color=AppColors.TEXT_PRIMARY,
+                                            size=14,
                                         ),
                                     ]
                                 )
@@ -908,13 +1159,13 @@ def main(page: ft.Page):
                             if intento == max_intentos:
                                 logger.error(f"Error persistente al obtener capítulo {cap}")
                                 open_banner(
-                                    ft.Colors.RED_900, # Fondo más oscuro para error
-                                    ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED_300, size=40),
+                                    AppColors.BG_ELEVATED,
+                                    ft.Icon(ft.Icons.ERROR_OUTLINE_ROUNDED, color=AppColors.ERROR, size=40),
                                     [
                                         ft.Text(
-                                            value=f"Error persistente al obtener capítulo {cap}",
-                                            color=ft.Colors.WHITE, # Texto blanco
-                                            size=14
+                                            value=f"❌ Error al obtener capítulo {cap}",
+                                            color=AppColors.TEXT_PRIMARY,
+                                            size=14,
                                         ),
                                     ]
                                 )
@@ -931,178 +1182,436 @@ def main(page: ft.Page):
         # navigate_to_novela_detail(novela_id)
 
     def create_sitio_button(sitio):
-        # --- Botón con estilo mejorado para tema oscuro ---
-        # Apply responsive padding and shape styles here
-        return ft.ElevatedButton(
-            sitio['nombre'],
-            on_click=lambda e, id=sitio['_id']: navigate_to_detail(id),
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=50), # Circular shape on small screens
-                padding=ft.Padding(10, 15, 10, 15) # Consistent internal spacing
+        """Crea un botón de sitio con diseño de tarjeta moderna"""
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Container(
+                        content=ft.Icon(
+                            ft.Icons.LANGUAGE_ROUNDED,
+                            color=AppColors.PRIMARY_LIGHT,
+                            size=36,
+                        ),
+                        padding=15,
+                        border_radius=50,
+                        bgcolor=ft.Colors.with_opacity(0.15, AppColors.PRIMARY),
+                    ),
+                    ft.Text(
+                        sitio['nombre'],
+                        size=14,
+                        weight=ft.FontWeight.W_600,
+                        color=AppColors.TEXT_PRIMARY,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Text(
+                        sitio.get('url', 'Sin URL')[:30] + '...' if len(sitio.get('url', '')) > 30 else sitio.get('url', 'Sin URL'),
+                        size=10,
+                        color=AppColors.TEXT_MUTED,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=10,
             ),
-            # Añadir tooltip
-            tooltip=f"Ver novelas de {sitio['nombre']}"
+            padding=20,
+            border_radius=16,
+            bgcolor=AppColors.BG_CARD,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.BORDER)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=15,
+                color=ft.Colors.with_opacity(0.2, AppColors.PRIMARY),
+                offset=ft.Offset(0, 4),
+            ),
+            on_click=lambda e, id=sitio['_id']: navigate_to_detail(id),
+            on_hover=lambda e: setattr(e.control, 'bgcolor', AppColors.BG_ELEVATED if e.data == "true" else AppColors.BG_CARD) or page.update(),
+            ink=True,
+            ink_color=ft.Colors.with_opacity(0.1, AppColors.PRIMARY),
+            tooltip=f"🌐 Ver novelas de {sitio['nombre']}",
+            animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT),
         )
 
     def create_novela_card(novela):
-        # --- Tarjeta de novela con estilo mejorado para tema oscuro ---
-        return ft.Card(
-            content=ft.Container(
-                content=ft.Column([
-                    ft.Image(
-                        src=novela['imagen_url'],
-                        fit=ft.ImageFit.COVER, # Mejor ajuste
-                        repeat=ft.ImageRepeat.NO_REPEAT,
-                        border_radius=ft.border_radius.vertical(top=10), # Solo esquinas superiores
-                        height=200, # Altura fija para consistencia
-                        width=180, # Ancho fija para consistencia
+        """Crea una tarjeta de novela con diseño moderno y efectos hover"""
+        # Determinar color de estado
+        status = novela.get('status', '').lower()
+        status_color = AppColors.ACCENT_GREEN if 'complet' in status else AppColors.ACCENT_ORANGE if 'ongoing' in status else AppColors.TEXT_MUTED
+        status_text = novela.get('status', 'Desconocido')[:15]
+        
+        return ft.Container(
+            content=ft.Stack(
+                controls=[
+                    # Imagen de fondo con overlay
+                    ft.Container(
+                        content=ft.Image(
+                            src=novela['imagen_url'],
+                            fit=ft.ImageFit.COVER,
+                            repeat=ft.ImageRepeat.NO_REPEAT,
+                            border_radius=ft.border_radius.all(14),
+                        ),
+                        border_radius=ft.border_radius.all(14),
+                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
                     ),
-                    ft.Container( # Contenedor para el texto con padding
-                        content=ft.Text(novela['nombre'], size=8, weight=ft.FontWeight.W_500, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, color=ft.Colors.WHITE), # Texto blanco
-                        padding=ft.Padding(5, 5, 5, 10), # Padding interno
-                        expand=True # Para que el texto se expanda y se centre
+                    # Gradiente oscuro en la parte inferior
+                    ft.Container(
+                        gradient=ft.LinearGradient(
+                            begin=ft.alignment.top_center,
+                            end=ft.alignment.bottom_center,
+                            colors=[
+                                ft.Colors.TRANSPARENT,
+                                ft.Colors.TRANSPARENT,
+                                ft.Colors.with_opacity(0.7, AppColors.BG_DARK),
+                                ft.Colors.with_opacity(0.95, AppColors.BG_DARK),
+                            ],
+                        ),
+                        border_radius=ft.border_radius.all(14),
                     ),
-                ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER), # Sin espacio entre imagen y texto, centrado
-                padding=0, # Sin padding interno en el contenedor principal
-                border_radius=ft.border_radius.all(10),
-                ink=True, # Efecto de tinta al hacer clic
-                on_click=lambda e, id=novela['_id']: navigate_to_novela_detail(id),
+                    # Contenido superpuesto
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                # Badge de estado en la esquina superior
+                                ft.Container(
+                                    content=ft.Text(
+                                        status_text,
+                                        size=9,
+                                        weight=ft.FontWeight.W_600,
+                                        color=AppColors.TEXT_PRIMARY,
+                                    ),
+                                    bgcolor=status_color,
+                                    padding=ft.Padding(8, 4, 8, 4),
+                                    border_radius=8,
+                                    alignment=ft.alignment.center,
+                                ),
+                                ft.Container(expand=True),  # Espaciador
+                                # Título de la novela
+                                ft.Text(
+                                    novela['nombre'],
+                                    size=11,
+                                    weight=ft.FontWeight.W_600,
+                                    color=AppColors.TEXT_PRIMARY,
+                                    max_lines=2,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                    text_align=ft.TextAlign.LEFT,
+                                ),
+                                # Autor
+                                ft.Text(
+                                    f"✍️ {novela.get('autor', 'Desconocido')[:20]}",
+                                    size=9,
+                                    color=AppColors.TEXT_MUTED,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
+                            ],
+                            spacing=4,
+                            alignment=ft.MainAxisAlignment.START,
+                        ),
+                        padding=ft.Padding(10, 8, 10, 12),
+                    ),
+                ],
             ),
-            elevation=3, # Sombra para profundidad
+            width=180,
+            height=260,
+            border_radius=14,
+            bgcolor=AppColors.BG_CARD,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.BORDER)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=12,
+                color=ft.Colors.with_opacity(0.25, AppColors.BG_DARK),
+                offset=ft.Offset(0, 4),
+            ),
+            on_click=lambda e, id=novela['_id']: navigate_to_novela_detail(id),
+            on_hover=lambda e: (
+                setattr(e.control, 'scale', 1.03 if e.data == "true" else 1.0),
+                setattr(e.control, 'shadow', ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=20 if e.data == "true" else 12,
+                    color=ft.Colors.with_opacity(0.4 if e.data == "true" else 0.25, AppColors.PRIMARY),
+                    offset=ft.Offset(0, 8 if e.data == "true" else 4),
+                )),
+                page.update()
+            ),
+            animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT),
+            ink=True,
+            ink_color=ft.Colors.with_opacity(0.1, AppColors.PRIMARY),
         )
 
     def create_home_view():
         show_loading()
         sitios = load_home_data()
+        
+        # Header decorativo
+        header = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.AUTO_STORIES_ROUNDED, size=40, color=AppColors.PRIMARY_LIGHT),
+                            ft.Column(
+                                controls=[
+                                    ft.Text(
+                                        "Novelas Manager",
+                                        size=28,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=AppColors.TEXT_PRIMARY,
+                                    ),
+                                    ft.Text(
+                                        "Gestiona y descarga tus novelas favoritas",
+                                        size=13,
+                                        color=AppColors.TEXT_MUTED,
+                                    ),
+                                ],
+                                spacing=2,
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=15,
+                    ),
+                    # Estadísticas rápidas
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Container(
+                                    content=ft.Row([
+                                        ft.Icon(ft.Icons.LANGUAGE, color=AppColors.SECONDARY, size=18),
+                                        ft.Text(f"{len(sitios)} Sitios", size=13, color=AppColors.TEXT_SECONDARY, weight=ft.FontWeight.W_500),
+                                    ], spacing=6),
+                                    padding=ft.Padding(12, 8, 12, 8),
+                                    border_radius=20,
+                                    bgcolor=ft.Colors.with_opacity(0.1, AppColors.SECONDARY),
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                        margin=ft.Margin(0, 10, 0, 0),
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=5,
+            ),
+            padding=ft.Padding(20, 25, 20, 20),
+            margin=ft.Margin(20, 0, 20, 10),
+            border_radius=20,
+            gradient=ft.LinearGradient(
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right,
+                colors=[AppColors.BG_CARD, AppColors.BG_ELEVATED],
+            ),
+            border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.PRIMARY)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=20,
+                color=ft.Colors.with_opacity(0.15, AppColors.PRIMARY),
+                offset=ft.Offset(0, 4),
+            ),
+        )
+        
         return ft.View(
             "/",
             [
-                ft.AppBar(title=ft.Text("Sitios de Novelas"), bgcolor=ft.Colors.SURFACE), # Usar color del tema
-                # --- GridView with responsive max_extent ---
+                ft.AppBar(
+                    title=ft.Row([
+                        ft.Icon(ft.Icons.MENU_BOOK_ROUNDED, color=AppColors.PRIMARY_LIGHT, size=24),
+                        ft.Text("  Sitios de Novelas", weight=ft.FontWeight.W_600),
+                    ]),
+                    bgcolor=AppColors.BG_CARD,
+                    center_title=False,
+                    elevation=0,
+                ),
+                header,
+                ft.Container(
+                    content=ft.Text(
+                        "📚 Selecciona un sitio para explorar",
+                        size=14,
+                        color=AppColors.TEXT_MUTED,
+                        weight=ft.FontWeight.W_500,
+                    ),
+                    padding=ft.Padding(25, 10, 25, 5),
+                ),
                 ft.GridView(
                     expand=True,
                     runs_count=5,
-                    # Use max_extent for responsive card sizing
-                    max_extent=200, # Adjust this value based on desired card size on larger screens
-                    spacing=15, # Espaciado horizontal
-                    run_spacing=15, # Espaciado vertical
+                    max_extent=220,
+                    spacing=20,
+                    run_spacing=20,
+                    padding=ft.Padding(20, 10, 20, 20),
                     controls=[create_sitio_button(sitio) for sitio in sitios]
                 )
             ],
-            padding=ft.Padding(20, 10, 20, 20) # Padding general de la vista
+            bgcolor=AppColors.BG_DARK,
+            padding=0,
         )
 
     # --- Modificar create_detail_view para manejar paginación ---
-    def create_detail_view(sitio_id, pagina=1): # Añadir parámetro de página
-        # show_loading() # Opcional: mostrar indicador de carga específico para esta vista
+    def create_detail_view(sitio_id, pagina=1):
         logger.info(f"Cargando vista de sitio {sitio_id}, página {pagina}")
         sitio, novelas_pagina, total_novelas = load_sitio_details_paginado(sitio_id, pagina, NOVELAS_POR_PAGINA)
+        
         if not sitio:
             return ft.View(
                 f"/sitio/{sitio_id}",
                 [
                     ft.AppBar(
                         title=ft.Text("Error", size=16),
-                        bgcolor=ft.Colors.ERROR,
+                        bgcolor=AppColors.ERROR,
                         leading=ft.IconButton(
                             ft.Icons.ARROW_BACK,
-                            on_click=lambda _: page.go("/") # Asumiendo 'page' está disponible
+                            on_click=lambda _: page.go("/"),
+                            icon_color=AppColors.TEXT_PRIMARY,
                         )
                     ),
-                    ft.Text("Sitio no encontrado", size=20)
-                ]
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Icon(ft.Icons.ERROR_OUTLINE_ROUNDED, size=60, color=AppColors.ERROR),
+                            ft.Text("Sitio no encontrado", size=20, color=AppColors.TEXT_PRIMARY),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
+                        alignment=ft.alignment.center,
+                        expand=True,
+                    )
+                ],
+                bgcolor=AppColors.BG_DARK,
             )
 
-        total_paginas = (total_novelas + NOVELAS_POR_PAGINA - 1) // NOVELAS_POR_PAGINA # Calcular total de páginas, redondeando hacia arriba
+        total_paginas = (total_novelas + NOVELAS_POR_PAGINA - 1) // NOVELAS_POR_PAGINA
 
-        # --- Función auxiliar para navegar a una página específica ---
         def ir_a_pagina(p):
-            # Esta función recarga la vista con la nueva página
-            # page.go es la forma estándar de cambiar rutas en Flet
             page.go(f"/sitio/{sitio_id}?pagina={p}")
 
-        # --- Controles de Paginación ---
+        # --- Controles de Paginación Modernos ---
         controles_paginacion = []
         if total_paginas > 1:
-            # Botón Anterior
-            btn_anterior = ft.IconButton(
-                icon=ft.Icons.ARROW_BACK,
-                disabled=(pagina <= 1),
-                on_click=lambda _: ir_a_pagina(pagina - 1) if pagina > 1 else None,
-                tooltip="Página Anterior"
+            btn_anterior = ft.Container(
+                content=ft.IconButton(
+                    icon=ft.Icons.CHEVRON_LEFT_ROUNDED,
+                    icon_size=24,
+                    disabled=(pagina <= 1),
+                    on_click=lambda _: ir_a_pagina(pagina - 1) if pagina > 1 else None,
+                    icon_color=AppColors.PRIMARY_LIGHT if pagina > 1 else AppColors.TEXT_MUTED,
+                    tooltip="Página Anterior",
+                ),
+                bgcolor=AppColors.BG_CARD if pagina > 1 else ft.Colors.TRANSPARENT,
+                border_radius=10,
             )
-            # Texto de página
-            txt_pagina = ft.Text(f"Página {pagina} de {total_paginas}", size=14, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE)
-            # Botón Siguiente
-            btn_siguiente = ft.IconButton(
-                icon=ft.Icons.ARROW_FORWARD,
-                disabled=(pagina >= total_paginas),
-                on_click=lambda _: ir_a_pagina(pagina + 1) if pagina < total_paginas else None,
-                tooltip="Página Siguiente"
+            
+            txt_pagina = ft.Container(
+                content=ft.Row([
+                    ft.Text(f"{pagina}", size=16, weight=ft.FontWeight.BOLD, color=AppColors.PRIMARY_LIGHT),
+                    ft.Text(" / ", size=14, color=AppColors.TEXT_MUTED),
+                    ft.Text(f"{total_paginas}", size=14, color=AppColors.TEXT_SECONDARY),
+                ], spacing=2),
+                padding=ft.Padding(15, 8, 15, 8),
+                border_radius=10,
+                bgcolor=AppColors.BG_CARD,
             )
-            # Selector de página (opcional, más avanzado)
-            # dropdown_paginas = ft.Dropdown(
-            #     options=[ft.dropdown.Option(str(i)) for i in range(1, total_paginas + 1)],
-            #     value=str(pagina),
-            #     on_change=lambda e: ir_a_pagina(int(e.control.value)),
-            #     width=100
-            # )
+            
+            btn_siguiente = ft.Container(
+                content=ft.IconButton(
+                    icon=ft.Icons.CHEVRON_RIGHT_ROUNDED,
+                    icon_size=24,
+                    disabled=(pagina >= total_paginas),
+                    on_click=lambda _: ir_a_pagina(pagina + 1) if pagina < total_paginas else None,
+                    icon_color=AppColors.PRIMARY_LIGHT if pagina < total_paginas else AppColors.TEXT_MUTED,
+                    tooltip="Página Siguiente",
+                ),
+                bgcolor=AppColors.BG_CARD if pagina < total_paginas else ft.Colors.TRANSPARENT,
+                border_radius=10,
+            )
+            
             controles_paginacion = [
-                ft.Row(
-                    controls=[btn_anterior, txt_pagina, btn_siguiente], # Agregar dropdown_paginas si se usa
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    spacing=10
+                ft.Container(
+                    content=ft.Row(
+                        controls=[btn_anterior, txt_pagina, btn_siguiente],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=10
+                    ),
+                    padding=ft.Padding(0, 10, 0, 10),
                 )
             ]
 
-        # --- Vista Principal ---
+        # --- Header del sitio con información ---
+        site_header = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.LANGUAGE_ROUNDED, color=AppColors.PRIMARY_LIGHT, size=28),
+                        padding=12,
+                        border_radius=50,
+                        bgcolor=ft.Colors.with_opacity(0.15, AppColors.PRIMARY),
+                    ),
+                    ft.Column([
+                        ft.Text(sitio['nombre'], size=20, weight=ft.FontWeight.BOLD, color=AppColors.TEXT_PRIMARY),
+                        ft.Text(sitio.get('url', 'N/A'), size=11, color=AppColors.TEXT_MUTED),
+                    ], spacing=2, expand=True),
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Text(f"{total_novelas}", size=24, weight=ft.FontWeight.BOLD, color=AppColors.SECONDARY),
+                            ft.Text("novelas", size=11, color=AppColors.TEXT_MUTED),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+                        padding=ft.Padding(15, 10, 15, 10),
+                        border_radius=12,
+                        bgcolor=ft.Colors.with_opacity(0.1, AppColors.SECONDARY),
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.START,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=15,
+            ),
+            padding=ft.Padding(20, 15, 20, 15),
+            margin=ft.Margin(15, 5, 15, 10),
+            border_radius=16,
+            bgcolor=AppColors.BG_CARD,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.BORDER)),
+        )
+
         return ft.View(
-            f"/sitio/{sitio_id}", # La ruta base sigue siendo la misma
+            f"/sitio/{sitio_id}",
             [
                 ft.AppBar(
-                    title=ft.Text(sitio['nombre'], size=16),
-                    bgcolor=ft.Colors.SURFACE,
-                    leading=ft.IconButton(
-                        ft.Icons.ARROW_BACK,
-                        on_click=lambda _: page.go("/")
-                    )
-                ),
-                # Información del sitio
-                ft.Container(
-                    content=ft.ResponsiveRow([
-                        ft.Column([ft.Text(f"ID: {sitio_id}", size=14, color=ft.Colors.GREY_300)], col=4, horizontal_alignment=ft.CrossAxisAlignment.START),
-                        ft.Column([ft.Text(f"URL: {sitio.get('url', 'N/A')}", size=14, color=ft.Colors.GREY_300)], col=4, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        ft.Column([ft.Text(f"Novelas: {total_novelas}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)], col=4, horizontal_alignment=ft.CrossAxisAlignment.END),
+                    title=ft.Row([
+                        ft.Icon(ft.Icons.LIBRARY_BOOKS_ROUNDED, color=AppColors.PRIMARY_LIGHT, size=22),
+                        ft.Text(f"  {sitio['nombre']}", weight=ft.FontWeight.W_600, size=16),
                     ]),
-                    padding=ft.Padding(10, 10, 10, 10),
-                    border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
-                    border_radius=ft.border_radius.all(8),
-                    margin=ft.Margin(0, 0, 0, 15)
+                    bgcolor=AppColors.BG_CARD,
+                    leading=ft.IconButton(
+                        ft.Icons.ARROW_BACK_ROUNDED,
+                        on_click=lambda _: page.go("/"),
+                        icon_color=AppColors.TEXT_PRIMARY,
+                        tooltip="Volver al inicio",
+                    ),
+                    elevation=0,
                 ),
-                # Controles de Paginación (Arriba)
-                *controles_paginacion, # Desempaquetar los controles
-                # GridView de novelas (solo la página actual)
+                site_header,
+                *controles_paginacion,
                 ft.GridView(
                     expand=True,
                     runs_count=5,
-                    # Use max_extent for responsive card sizing
-                    max_extent=200, # Adjust this value based on desired card size on larger screens
-                    spacing=10,
-                    run_spacing=15,
-                    child_aspect_ratio=0.65,
-                    controls=[create_novela_card(novela) for novela in novelas_pagina] # Solo novelas de la página actual
+                    max_extent=200,
+                    spacing=15,
+                    run_spacing=20,
+                    padding=ft.Padding(15, 5, 15, 15),
+                    controls=[create_novela_card(novela) for novela in novelas_pagina]
                 ),
-                # Controles de Paginación (Abajo)
-                *controles_paginacion, # Desempaquetar los controles otra vez
+                *controles_paginacion,
             ],
-            spacing=20,
-            padding=ft.Padding(20, 10, 20, 20)
+            bgcolor=AppColors.BG_DARK,
+            spacing=5,
+            padding=0,
         )
 
     def create_novel_detail_view(novela_id):
         global contar_capitulos
         global lista_capitulos
         global ids_contenido_capitulo # Asegurarse de usar la global
+        global mapa_capitulo_indice
+        global pagina_capitulos_actual
+        global todos_capitulos
+        global debounce_timer
+        global lv_capitulos
+        global spinner_paginacion
+        global total_paginas_capitulos
+        
         show_loading()
         contar_capitulos=0
         novela, capitulos = load_novela_details(novela_id)
@@ -1125,28 +1634,180 @@ def main(page: ft.Page):
         ids_contenido_capitulo = load_ids_contenido_capitulos_novela(novela_id) # Actualizar la global
         contar_capitulos = len(ids_contenido_capitulo)
         txt_number.value=str(contar_capitulos)
+        
+        # Guardar todos los capítulos para exportación y mapeo
+        todos_capitulos = capitulos
+        mapa_capitulo_indice = {str(cap['_id']): idx for idx, cap in enumerate(capitulos, 1)}
+        
+        # Restaurar página de sesión o empezar en 1
+        pagina_capitulos_actual = page.session.get(f"pagina_caps_{novela_id}") or 1
+        total_paginas_capitulos = max(1, (len(capitulos) + CAPITULOS_POR_PAGINA - 1) // CAPITULOS_POR_PAGINA)
+        
+        # Asegurar que la página actual es válida
+        if pagina_capitulos_actual > total_paginas_capitulos:
+            pagina_capitulos_actual = 1
 
-        # --- Lista de capítulos con ListTile para mejor presentación ---
-        lista_capitulos=[
-            ft.ListTile(
-                leading=ft.Icon(
-                    name=ft.Icons.CHECK if str(capitulo['_id']) in ids_contenido_capitulo else ft.Icons.PENDING,
-                    color=ft.Colors.GREEN_300 if str(capitulo['_id']) in ids_contenido_capitulo else ft.Colors.GREY_500
-                ),
-                title=ft.Text(capitulo['nombre'], size=13, color=ft.Colors.GREY_300), # Texto más claro
-                dense=True, # Hacer el ListTile más compacto
-                # Añadir un subtítulo con la fecha si está disponible
-                subtitle=ft.Text(f"Fecha: {capitulo.get('created_at', 'N/A').strftime('%Y-%m-%d') if isinstance(capitulo.get('created_at'), datetime) else 'N/A'}", size=11, color=ft.Colors.GREY_600) if capitulo.get('created_at') else None
+        # --- Lista de capítulos con diseño moderno ---
+        def create_chapter_item(capitulo, index):
+            is_downloaded = str(capitulo['_id']) in ids_contenido_capitulo
+            return ft.Container(
+                content=ft.Row([
+                    # Número de capítulo
+                    ft.Container(
+                        content=ft.Text(f"{index}", size=11, weight=ft.FontWeight.W_600, 
+                                       color=AppColors.TEXT_PRIMARY if is_downloaded else AppColors.TEXT_MUTED),
+                        width=35,
+                        height=35,
+                        border_radius=8,
+                        bgcolor=AppColors.ACCENT_GREEN if is_downloaded else AppColors.BG_ELEVATED,
+                        alignment=ft.alignment.center,
+                    ),
+                    # Información del capítulo
+                    ft.Column([
+                        ft.Text(capitulo['nombre'][:50] + ('...' if len(capitulo['nombre']) > 50 else ''), 
+                               size=12, weight=ft.FontWeight.W_500, 
+                               color=AppColors.TEXT_PRIMARY if is_downloaded else AppColors.TEXT_SECONDARY),
+                        ft.Text(
+                            f"{capitulo.get('created_at', 'N/A').strftime('%d/%m/%Y') if isinstance(capitulo.get('created_at'), datetime) else 'Sin fecha'}",
+                            size=10, color=AppColors.TEXT_MUTED
+                        ),
+                    ], spacing=2, expand=True),
+                    # Icono de estado
+                    ft.Icon(
+                        name=ft.Icons.CHECK_CIRCLE_ROUNDED if is_downloaded else ft.Icons.RADIO_BUTTON_UNCHECKED_ROUNDED,
+                        color=AppColors.ACCENT_GREEN if is_downloaded else AppColors.TEXT_MUTED,
+                        size=20,
+                    ),
+                ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.Padding(10, 8, 10, 8),
+                border_radius=10,
+                bgcolor=ft.Colors.with_opacity(0.05, AppColors.ACCENT_GREEN) if is_downloaded else ft.Colors.TRANSPARENT,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.ACCENT_GREEN if is_downloaded else AppColors.BORDER)),
             )
-            for capitulo in capitulos
-        ]
+        
+        def obtener_capitulos_pagina(pagina):
+            """Obtiene los capítulos de la página indicada."""
+            inicio = (pagina - 1) * CAPITULOS_POR_PAGINA
+            fin = inicio + CAPITULOS_POR_PAGINA
+            return capitulos[inicio:fin], inicio + 1  # Retorna capítulos y offset para índices
+        
+        def actualizar_lista_capitulos(pagina):
+            """Actualiza la lista de capítulos para la página dada."""
+            global pagina_capitulos_actual
+            pagina_capitulos_actual = pagina
+            page.session.set(f"pagina_caps_{novela_id}", pagina)  # Persistir en sesión
+            
+            caps_pagina, offset = obtener_capitulos_pagina(pagina)
+            lista_capitulos.clear()
+            for idx, cap in enumerate(caps_pagina):
+                lista_capitulos.append(create_chapter_item(cap, offset + idx))
+            
+            # Actualizar UI de paginación
+            txt_pagina_actual.value = f"{pagina}/{total_paginas_capitulos}"
+            input_ir_pagina.value = str(pagina)
+            btn_anterior.disabled = (pagina <= 1)
+            btn_siguiente.disabled = (pagina >= total_paginas_capitulos)
+            
+        def ir_pagina_anterior(e):
+            """Navega a la página anterior."""
+            if pagina_capitulos_actual > 1:
+                spinner_paginacion.visible = True
+                page.update()
+                actualizar_lista_capitulos(pagina_capitulos_actual - 1)
+                spinner_paginacion.visible = False
+                page.update()
+        
+        def ir_pagina_siguiente(e):
+            """Navega a la página siguiente."""
+            if pagina_capitulos_actual < total_paginas_capitulos:
+                spinner_paginacion.visible = True
+                page.update()
+                actualizar_lista_capitulos(pagina_capitulos_actual + 1)
+                spinner_paginacion.visible = False
+                page.update()
+        
+        def ir_a_pagina_debounced(e):
+            """Maneja el cambio de página con debounce de 200ms."""
+            global debounce_timer
+            if debounce_timer:
+                debounce_timer.cancel()
+            
+            def ejecutar_cambio():
+                try:
+                    pagina = int(input_ir_pagina.value or "1")
+                    pagina = max(1, min(pagina, total_paginas_capitulos))
+                    spinner_paginacion.visible = True
+                    page.update()
+                    actualizar_lista_capitulos(pagina)
+                    spinner_paginacion.visible = False
+                    page.update()
+                except ValueError:
+                    pass
+            
+            debounce_timer = threading.Timer(0.2, ejecutar_cambio)
+            debounce_timer.start()
+        
+        # Crear controles de paginación
+        btn_anterior = ft.IconButton(
+            ft.Icons.CHEVRON_LEFT_ROUNDED,
+            on_click=ir_pagina_anterior,
+            icon_color=AppColors.PRIMARY_LIGHT,
+            icon_size=20,
+            tooltip="Página anterior",
+            disabled=(pagina_capitulos_actual <= 1),
+        )
+        
+        btn_siguiente = ft.IconButton(
+            ft.Icons.CHEVRON_RIGHT_ROUNDED,
+            on_click=ir_pagina_siguiente,
+            icon_color=AppColors.PRIMARY_LIGHT,
+            icon_size=20,
+            tooltip="Página siguiente",
+            disabled=(pagina_capitulos_actual >= total_paginas_capitulos),
+        )
+        
+        txt_pagina_actual = ft.Text(
+            f"{pagina_capitulos_actual}/{total_paginas_capitulos}", 
+            size=11, color=AppColors.TEXT_SECONDARY
+        )
+        
+        input_ir_pagina = ft.TextField(
+            value=str(pagina_capitulos_actual),
+            width=50,
+            height=32,
+            text_size=11,
+            text_align=ft.TextAlign.CENTER,
+            border_color=AppColors.BORDER,
+            focused_border_color=AppColors.PRIMARY_LIGHT,
+            input_filter=ft.NumbersOnlyInputFilter(),
+            on_change=ir_a_pagina_debounced,
+        )
+        
+        spinner_paginacion = ft.ProgressRing(
+            width=16, height=16, 
+            stroke_width=2, 
+            color=AppColors.PRIMARY_LIGHT,
+            visible=False,
+        )
+        
+        # Inicializar lista de capítulos con la página actual
+        caps_inicial, offset_inicial = obtener_capitulos_pagina(pagina_capitulos_actual)
+        lista_capitulos = [create_chapter_item(cap, offset_inicial + idx) for idx, cap in enumerate(caps_inicial)]
+        
+        # Crear el ListView referenciado globalmente
+        lv_capitulos = ft.ListView(
+            controls=lista_capitulos,
+            spacing=4,
+            height=350,
+        )
 
-        btn_epub.on_click=lambda _: crearepub(novela, capitulos)
-        btn_epub.disabled=False if len(capitulos) == contar_capitulos else True
-        btn_pdf.on_click=lambda _: crearpdf(novela, capitulos)
-        btn_pdf.disabled=False if len(capitulos) == contar_capitulos else True
+        # Usar todos_capitulos para exportación (todos los capítulos, no solo la página actual)
+        btn_epub.on_click=lambda _: crearepub(novela, todos_capitulos)
+        btn_epub.disabled=False if len(todos_capitulos) == contar_capitulos else True
+        btn_pdf.on_click=lambda _: crearpdf(novela, todos_capitulos)
+        btn_pdf.disabled=False if len(todos_capitulos) == contar_capitulos else True
 
-        cap_faltantes = comparar_diccionarios([str(x['_id']) for x in capitulos], ids_contenido_capitulo)
+        cap_faltantes = comparar_diccionarios([str(x['_id']) for x in todos_capitulos], ids_contenido_capitulo)
         btn_procesar.disabled= not (len(cap_faltantes) > 0) # Corrección: lógica más clara
         btn_procesar.on_click=lambda _: obtener_capitulos_webscrapping(cap_faltantes, novela_id)
 
@@ -1168,120 +1829,221 @@ def main(page: ft.Page):
             'updated_at': 'Fecha Modificacion en Base de Datos',
         }
 
-        # --- Vista de detalles con mejor organización y estilo ---
+        # --- Determinar estado de la novela para badge ---
+        status = novela.get('status', '').lower()
+        status_color = AppColors.ACCENT_GREEN if 'complet' in status else AppColors.ACCENT_ORANGE if 'ongoing' in status else AppColors.TEXT_MUTED
+        status_icon = ft.Icons.CHECK_CIRCLE_ROUNDED if 'complet' in status else ft.Icons.PENDING_ROUNDED
+        
+        # --- Calcular porcentaje de progreso ---
+        progreso_porcentaje = (contar_capitulos / len(capitulos) * 100) if len(capitulos) > 0 else 0
+        
+        # --- Vista de detalles con diseño moderno ---
         return ft.View(
             f"/novela/{novela_id}",
             [
                 ft.AppBar(
-                    title=ft.Text(novela['nombre'], size=16),
-                    bgcolor=ft.Colors.SURFACE, # Usar color del tema
+                    title=ft.Row([
+                        ft.Icon(ft.Icons.BOOK_ROUNDED, color=AppColors.PRIMARY_LIGHT, size=22),
+                        ft.Text(f"  {novela['nombre'][:40]}{'...' if len(novela['nombre']) > 40 else ''}", 
+                               weight=ft.FontWeight.W_600, size=14),
+                    ]),
+                    bgcolor=AppColors.BG_CARD,
                     leading=ft.IconButton(
-                        ft.Icons.ARROW_BACK,
-                        on_click=lambda _: navigate_to_detail(novela['sitio_id'])
-                    )
+                        ft.Icons.ARROW_BACK_ROUNDED,
+                        on_click=lambda _: navigate_to_detail(novela['sitio_id']),
+                        icon_color=AppColors.TEXT_PRIMARY,
+                        tooltip="Volver a la lista",
+                    ),
+                    elevation=0,
                 ),
                 # --- Sección principal con información de la novela ---
-                ft.Container(
-                    content=ft.ResponsiveRow([
-                        # Columna de la imagen
-                        ft.Column(
-                            col={"sm": 12, "md": 3}, # Responsive: 12 en móvil, 3 en desktop
-                            controls=[
-                                ft.Image(
-                                    src=novela['imagen_url'],
-                                    fit=ft.ImageFit.FIT_WIDTH,
-                                    repeat=ft.ImageRepeat.NO_REPEAT,
-                                    border_radius=ft.border_radius.all(10),
-                                    height=250 # Altura fija para consistencia
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER # Centrar imagen
-                        ),
-                        # Columna de los detalles
-                        ft.Column(
-                            col={"sm": 12, "md": 9}, # Responsive: 12 en móvil, 9 en desktop
-                            controls=[
-                                # Usar DataTable para una presentación más estructurada
-                                ft.DataTable(
-                                    columns=[
-                                        ft.DataColumn(ft.Text("Campo", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)), # Texto blanco
-                                        ft.DataColumn(ft.Text("Valor", size=13, color=ft.Colors.GREY_300)), # Texto más claro
-                                    ],
-                                    rows=[
-                                        ft.DataRow(cells=[
-                                            ft.DataCell(ft.Text(etiquetas[key], size=12, color=ft.Colors.GREY_300)), # Texto más claro
-                                            ft.DataCell(ft.Text(f"{novela[key]}", size=12, selectable=True, color=ft.Colors.WHITE)) # Texto blanco y seleccionable
-                                        ])
-                                        for key in novela.keys()
-                                        if key not in ['imagen_url','sitio_id','created_at', 'updated_at', '_id'] # Excluir campos no deseados
-                                    ],
-                                    column_spacing=20, # Espacio entre columnas
-                                    heading_row_height=30, # Altura de fila de encabezado
-                                    data_row_min_height=30, # Altura mínima de filas de datos
-                                    border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT), # Borde sutil
-                                    border_radius=ft.border_radius.all(8), # Bordes redondeados
-                                    heading_row_color=ft.Colors.SURFACE, # Color de fondo del encabezado
-                                )
-                            ],
-                            scroll=ft.ScrollMode.AUTO # Scroll si el contenido es muy largo
-                        ),
-                    ]),
-                    padding=ft.Padding(10, 10, 10, 10), # Padding interno
-                    border_radius=ft.border_radius.all(8), # Bordes redondeados
-                    margin=ft.Margin(0, 0, 0, 5) # Margen inferior
-                ),
-                # --- Sección de controles y lista de capítulos ---
-                ft.Divider(height=5, thickness=0, color=ft.Colors.OUTLINE_VARIANT), # Divisor visual
                 ft.ResponsiveRow([
-                    # Columna de controles (lado izquierdo)
-                    ft.Container(
-                        col={"sm": 12, "md": 3}, # Responsive
-                        content=ft.Column([
-                            ft.Text("Capitulos Recopilados", weight=ft.FontWeight.BOLD, size=14, color=ft.Colors.WHITE), # Texto blanco
-                            ft.Row([
-                                txt_number,
-                                ft.Text("/", size=16, color=ft.Colors.WHITE), # Texto blanco
-                                ft.Text(str(len(capitulos)), size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE), # Texto blanco
-                            ], alignment=ft.MainAxisAlignment.CENTER),
-                            ft.Divider(height=10, thickness=0), # Espacio pequeño
-                            # Use ResponsiveRow for buttons to allow horizontal layout on larger screens
-                            # and vertical stacking on smaller ones
-                            ft.ResponsiveRow([
-                                ft.Column([btn_epub], col={"xs": 12, "sm": 12, "md": 4}), # Full width on xs, sm, 1/3 on md
-                                ft.Column([btn_pdf], col={"xs": 12, "sm": 12, "md": 4}),
-                                ft.Column([btn_procesar], col={"xs": 12, "sm": 12, "md": 4}),
-                            ], spacing=5, run_spacing=5), # Consistent spacing
-                            ft.Divider(height=15, thickness=2, color=ft.Colors.OUTLINE_VARIANT),
-                            # --- Contenedor para el ProgressRing centrado ---
+                    # Columna de la imagen con efectos
+                    ft.Column(
+                        col={"xs": 12, "sm": 12, "md": 3},
+                        controls=[
+                            ft.Container(
+                                content=ft.Image(
+                                    src=novela['imagen_url'],
+                                    fit=ft.ImageFit.CONTAIN,
+                                    border_radius=ft.border_radius.all(16),
+                                    height=250,
+                                ),
+                                border_radius=16,
+                                shadow=ft.BoxShadow(
+                                    spread_radius=0,
+                                    blur_radius=20,
+                                    color=ft.Colors.with_opacity(0.4, AppColors.PRIMARY),
+                                    offset=ft.Offset(0, 8),
+                                ),
+                                margin=ft.Margin(0, 0, 0, 10),
+                            ),
+                            # Badge de estado
                             ft.Container(
                                 content=ft.Row([
-                                    progress_ring
-                                ], expand=True, alignment=ft.MainAxisAlignment.CENTER),
-                                expand=True
+                                    ft.Icon(status_icon, color=AppColors.TEXT_PRIMARY, size=16),
+                                    ft.Text(novela.get('status', 'N/A'), size=12, 
+                                           weight=ft.FontWeight.W_600, color=AppColors.TEXT_PRIMARY),
+                                ], spacing=6, alignment=ft.MainAxisAlignment.CENTER),
+                                bgcolor=status_color,
+                                padding=ft.Padding(12, 6, 12, 6),
+                                border_radius=20,
+                                alignment=ft.alignment.center,
                             ),
-                        ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER), # Espaciado y alineación
-                        padding=ft.Padding(10, 10, 10, 10), # Padding interno
-                        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT), # Borde sutil
-                        border_radius=ft.border_radius.all(8), # Bordes redondeados
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    # Columna de lista de capítulos (lado derecho)
-                    ft.Container(
-                        col={"sm": 12, "md": 9}, # Responsive
-                        content=ft.ListView(
-                            expand=True,
-                            controls=lista_capitulos,
-                            adaptive=True,
-                            divider_thickness=0.5, # Grosor del divisor entre elementos
-                            spacing=2 # Espaciado entre elementos
+                    # Columna de los detalles
+                    ft.Column(
+                        col={"xs": 12, "sm": 12, "md": 9},
+                        controls=[
+                            # Título de la novela
+                            ft.Text(novela['nombre'], size=20, weight=ft.FontWeight.BOLD, 
+                                   color=AppColors.TEXT_PRIMARY),
+                            ft.Container(height=10),
+                            # Info cards en fila
+                            ft.Row([
+                                ft.Container(
+                                    content=ft.Column([
+                                        ft.Icon(ft.Icons.PERSON_ROUNDED, color=AppColors.SECONDARY, size=18),
+                                        ft.Text("Autor", size=9, color=AppColors.TEXT_MUTED),
+                                        ft.Text(novela.get('autor', 'Desconocido')[:20], size=11, 
+                                               weight=ft.FontWeight.W_500, color=AppColors.TEXT_PRIMARY),
+                                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                                    padding=10,
+                                    border_radius=10,
+                                    bgcolor=AppColors.BG_ELEVATED,
+                                    expand=True,
+                                ),
+                                ft.Container(
+                                    content=ft.Column([
+                                        ft.Icon(ft.Icons.CATEGORY_ROUNDED, color=AppColors.ACCENT_PINK, size=18),
+                                        ft.Text("Género", size=9, color=AppColors.TEXT_MUTED),
+                                        ft.Text(novela.get('genero', 'N/A')[:20], size=11, 
+                                               weight=ft.FontWeight.W_500, color=AppColors.TEXT_PRIMARY),
+                                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                                    padding=10,
+                                    border_radius=10,
+                                    bgcolor=AppColors.BG_ELEVATED,
+                                    expand=True,
+                                ),
+                                ft.Container(
+                                    content=ft.Column([
+                                        ft.Icon(ft.Icons.MENU_BOOK_ROUNDED, color=AppColors.ACCENT_ORANGE, size=18),
+                                        ft.Text("Capítulos", size=9, color=AppColors.TEXT_MUTED),
+                                        ft.Text(f"{len(capitulos)}", size=11, 
+                                               weight=ft.FontWeight.W_500, color=AppColors.TEXT_PRIMARY),
+                                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                                    padding=10,
+                                    border_radius=10,
+                                    bgcolor=AppColors.BG_ELEVATED,
+                                    expand=True,
+                                ),
+                            ], spacing=8),
+                            ft.Container(height=10),
+                            # Sinopsis
+                            ft.Container(
+                                content=ft.Column([
+                                    ft.Row([
+                                        ft.Icon(ft.Icons.DESCRIPTION_ROUNDED, color=AppColors.PRIMARY_LIGHT, size=16),
+                                        ft.Text("Sinopsis", size=13, weight=ft.FontWeight.W_600, color=AppColors.TEXT_PRIMARY),
+                                    ], spacing=6),
+                                    ft.Text(
+                                        novela.get('sinopsis', 'Sin sinopsis disponible')[:300] + ('...' if len(novela.get('sinopsis', '')) > 300 else ''),
+                                        size=11,
+                                        color=AppColors.TEXT_SECONDARY,
+                                    ),
+                                ], spacing=6),
+                                padding=12,
+                                border_radius=10,
+                                bgcolor=AppColors.BG_CARD,
+                                border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.BORDER)),
+                            ),
+                        ],
+                    ),
+                ], spacing=15, run_spacing=10),
+                ft.Divider(height=1, color=AppColors.BORDER),
+                # --- Sección de progreso y controles ---
+                ft.ResponsiveRow([
+                    # Panel de progreso
+                    ft.Column([
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text("📊 Progreso", size=13, weight=ft.FontWeight.W_600, 
+                                       color=AppColors.TEXT_PRIMARY),
+                                ft.Container(height=8),
+                                # Indicador de progreso
+                                ft.Row([
+                                    txt_number,
+                                    ft.Text(f" / {len(capitulos)}", size=14, color=AppColors.TEXT_MUTED),
+                                ], alignment=ft.MainAxisAlignment.CENTER),
+                                ft.ProgressBar(
+                                    value=progreso_porcentaje / 100,
+                                    color=AppColors.ACCENT_GREEN if progreso_porcentaje == 100 else AppColors.PRIMARY,
+                                    bgcolor=AppColors.BG_ELEVATED,
+                                ),
+                                ft.Text(f"{progreso_porcentaje:.1f}%", size=10, 
+                                       color=AppColors.ACCENT_GREEN if progreso_porcentaje == 100 else AppColors.TEXT_MUTED),
+                                ft.Container(height=10),
+                                # Botones de acción
+                                btn_epub,
+                                btn_pdf,
+                                btn_procesar,
+                                ft.Container(height=5),
+                                ft.Container(
+                                    content=progress_ring,
+                                    alignment=ft.alignment.center,
+                                ),
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=6),
+                            padding=15,
+                            border_radius=12,
+                            bgcolor=AppColors.BG_CARD,
+                            border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.BORDER)),
                         ),
-                        padding=ft.Padding(5, 5, 5, 5), # Padding interno
-                        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT), # Borde sutil
-                        border_radius=ft.border_radius.all(8), # Bordes redondeados
-                    ),
-                ], expand=True),
+                    ], col={"xs": 12, "sm": 12, "md": 3}),
+                    # Lista de capítulos
+                    ft.Column([
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Row([
+                                    ft.Icon(ft.Icons.LIST_ALT_ROUNDED, color=AppColors.PRIMARY_LIGHT, size=18),
+                                    ft.Text("Capítulos", size=13, weight=ft.FontWeight.W_600, 
+                                           color=AppColors.TEXT_PRIMARY),
+                                    ft.Container(expand=True),
+                                    ft.Container(
+                                        content=ft.Text(f"{contar_capitulos}/{len(todos_capitulos)}", size=11, 
+                                                       weight=ft.FontWeight.W_600, color=AppColors.ACCENT_GREEN),
+                                        padding=ft.Padding(8, 3, 8, 3),
+                                        border_radius=15,
+                                        bgcolor=ft.Colors.with_opacity(0.15, AppColors.ACCENT_GREEN),
+                                    ),
+                                ], spacing=8),
+                                ft.Container(height=8),
+                                # Controles de paginación
+                                ft.Row([
+                                    btn_anterior,
+                                    txt_pagina_actual,
+                                    btn_siguiente,
+                                    ft.Container(width=10),
+                                    ft.Text("Ir a:", size=10, color=AppColors.TEXT_MUTED),
+                                    input_ir_pagina,
+                                    spinner_paginacion,
+                                ], alignment=ft.MainAxisAlignment.CENTER, spacing=4),
+                                ft.Container(height=6),
+                                lv_capitulos,
+                            ]),
+                            padding=12,
+                            border_radius=12,
+                            bgcolor=AppColors.BG_CARD,
+                            border=ft.border.all(1, ft.Colors.with_opacity(0.1, AppColors.BORDER)),
+                        ),
+                    ], col={"xs": 12, "sm": 12, "md": 9}),
+                ], spacing=10, run_spacing=10),
             ],
-            spacing=20,
-            padding=ft.Padding(20, 10, 20, 20) # Padding general de la vista
+            bgcolor=AppColors.BG_DARK,
+            scroll=ft.ScrollMode.AUTO,
+            spacing=10,
+            padding=ft.Padding(15, 10, 15, 15),
         )
 
     # --- Modificar route_change para manejar el parámetro de página ---
