@@ -1,11 +1,14 @@
-version: '3'
-
 services:
   next-app:
-    build: .
+    build:
+      context: .
+      target: dev
     ports:
       - "3000:3000"
     volumes:
       - .:/app
       - /app/node_modules
-    restart: always
+      - /app/.next
+    env_file:
+      - .env.local
+    restart: unless-stopped

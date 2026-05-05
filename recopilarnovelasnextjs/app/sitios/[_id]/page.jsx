@@ -1,46 +1,52 @@
+import { getSitio, getNovelasDelSitio, getGeneros } from "@/lib/api";
+import SitioContent from "./SitioContent";
+import Link from "next/link";
 
-import ListadoNovelas from "./ListadoNovelas";
-import ListGeneros from "./ListGeneros";
-
-const cargarSitio = (id) => {
-  return fetch(`http://192.168.1.11:8000/api/sitios/${id}/`, { cache: "no-store" })
-    .then((res) => res.json())
-    .then((datos) => datos[0]);
-};
-
-const cargarGeneros = (id) => {
-  return fetch(`http://192.168.1.11:8000/api/generos/${id}/`, { cache: "no-store" })
-    .then((res) => res.json())
-    .then((datos) => datos['generos']);
-};
-
-const cargarNovelas = (sitio_id) => {
-  console.log(sitio_id)
-  return fetch(`http://192.168.1.11:8000/api/novelassitio/${sitio_id}/`, {
-    cache: "no-store",
-  })
-    .then((res) => res.json())
-    .then((datos) => datos);
-};
-
-export default async function page({ params }) {
+export default async function SitioPage({ params }) {
   const { _id } = params;
-  // console.log(_id)
-  const datos = await cargarSitio(_id);
-  // console.log(datos);
-  const generos = await cargarGeneros(_id);
-  // console.log(generos);
-  const novelas = await cargarNovelas(_id)
-  // console.log(novelas);
+
+  const [sitio, novelas, generos] = await Promise.all([
+    getSitio(_id),
+    getNovelasDelSitio(_id),
+    getGeneros(_id),
+  ]);
+
+  if (!sitio) {
+    return (
+      <div className="error-container">
+        <span className="error-icon">⚠️</span>
+        <h2>Sitio no encontrado</h2>
+        <p>No se pudo cargar la información del sitio.</p>
+        <Link href="/" className="btn btn-process" style={{ width: "auto" }}>
+          ← Volver al inicio
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <>
-      <h1>
-        {datos.nombre} - {datos.url} - {datos.idioma}
-      </h1>
-      <ListGeneros datos={generos}/>
-      <div className="novel">
-        <ListadoNovelas novelas={novelas} />
+      <div className="appbar">
+        <Link href="/" className="appbar-back">←</Link>
+        <span className="appbar-title">
+          <span className="icon">📚</span>
+          {sitio.nombre}
+        </span>
       </div>
+
+      <div className="site-header">
+        <div className="icon-circle">🌐</div>
+        <div className="site-header-info">
+          <h1>{sitio.nombre}</h1>
+          <p className="url">{sitio.url || "N/A"}</p>
+        </div>
+        <div className="stat-badge">
+          <span className="number">{novelas.length}</span>
+          <span className="label">novelas</span>
+        </div>
+      </div>
+
+      <SitioContent novelas={novelas} generos={generos} />
     </>
   );
 }
