@@ -6,9 +6,10 @@ import Link from "next/link";
 import { getEpubUrl, getPdfUrl } from "@/lib/api";
 
 const imageLoader = ({ src, width }) => `${src}?w=${width}`;
+const NO_COVER = "/imagenes/no-cover.svg";
 const CAPS_PER_PAGE = 50;
 
-export default function NovelDetail({ novela, capitulos, conteo }) {
+export default function NovelDetail({ novela, capitulos, conteo, capituloIdsConContenido = new Set() }) {
   const [paginaCaps, setPaginaCaps] = useState(1);
 
   // ── Progreso ──────────────────────────────────────────
@@ -92,7 +93,7 @@ export default function NovelDetail({ novela, capitulos, conteo }) {
             <div className="novel-cover">
               <Image
                 loader={imageLoader}
-                src={novela.imagen_url}
+                src={novela.imagen_url || NO_COVER}
                 alt={`Portada de ${novela.nombre}`}
                 width={180}
                 height={250}
@@ -286,8 +287,10 @@ export default function NovelDetail({ novela, capitulos, conteo }) {
             <div className="chapter-list">
               {capitulosPagina.map((cap, idx) => {
                 const globalIdx = offsetInicial + idx + 1;
+                const capIdStr = String(cap._id);
+                const isDownloaded = capituloIdsConContenido.has(capIdStr);
                 return (
-                  <div key={cap._id} className="chapter-item">
+                  <div key={cap._id} className={`chapter-item ${isDownloaded ? 'downloaded' : ''}`}>
                     <div className="chapter-index">{globalIdx}</div>
                     <div className="chapter-info">
                       <p className="chapter-name">
@@ -301,7 +304,7 @@ export default function NovelDetail({ novela, capitulos, conteo }) {
                           : "Sin fecha"}
                       </p>
                     </div>
-                    <span className="chapter-status-icon">○</span>
+                    <span className="chapter-status-icon">{isDownloaded ? '✓' : '○'}</span>
                   </div>
                 );
               })}

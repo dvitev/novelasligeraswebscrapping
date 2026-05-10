@@ -203,7 +203,7 @@ def get_db():
 - Habilitar profiler nivel 1 (`slowOpThresholdMs: 100`) para detectar queries lentas
 - Considerar replica set para alta disponibilidad (mínimo: 1 primary + 1 secondary + 1 arbiter)
 
-**6.8** Ejecutar script de migración de datos `scripts/export_mongodb_for_migration.py` (ya creado):
+**6.8** Ejecutar script de migración de datos `scripts/export_mongodb_for_migration.py`:
 - Fase export: respaldar todas las colecciones a JSON
 - Fase verify: validar integridad referencial y formatos
 - Fase import: importar a nueva estructura con índices

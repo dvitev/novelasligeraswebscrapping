@@ -18,12 +18,6 @@ export default function RootLayout({ children }) {
     <html lang="es">
       <body className={montserrat.className}>
         <div className="app-layout">
-          <header className="appbar">
-            <Link href="/" className="appbar-title">
-              <span className="icon">📚</span>
-              <span>Novelas Manager</span>
-            </Link>
-          </header>
           <main className="app-main">{children}</main>
           <footer className="footer">
             © {new Date().getFullYear()} Novelas Manager — Gestión y descarga de

@@ -25,20 +25,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-lmy74=ge0uyqn=r=e51kyis&73&bt!378o!-0c5^s4_+@!bbnt'
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-dev-key-insegura-no-usar-en-produccion")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in ("true", "1")
 
-ALLOWED_HOSTS = ['*']
-CORS_ALLOWED_ORIGINS=['http://localhost:3000','http://localhost:8000']
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,192.168.1.11").split(",")
+CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 CORS_ALLOW_METHODS = [
-    "DELETE",
     "GET",
     "OPTIONS",
-    "PATCH",
-    "POST",
-    "PUT",
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -55,6 +51,13 @@ CORS_ALLOW_HEADERS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'recopilarnovelas-cache',
+    }
+}
+
 
 # Application definition
 
@@ -63,6 +66,7 @@ INSTALLED_APPS = [
     'import_export',
     'rest_framework',
     'corsheaders',
+    'django_celery_beat',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -74,6 +78,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -128,12 +133,12 @@ WSGI_APPLICATION = 'recopilarnovelasdjango.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'djongo',
-        'NAME': 'recopilarnovelas',
-        'HOST': '192.168.1.11',
-        'PORT': 27017,
+        'NAME': os.environ.get("MONGODB_DATABASE", "recopilarnovelas"),
+        'HOST': os.environ.get("MONGODB_HOST", "192.168.1.11"),
+        'PORT': int(os.environ.get("MONGODB_PORT", 27017)),
         'CLIENT': {
-            'host': '192.168.1.11',
-            'port': 27017
+            'host': os.environ.get("MONGODB_HOST", "192.168.1.11"),
+            'port': int(os.environ.get("MONGODB_PORT", 27017))
         }
     }
 }
@@ -193,29 +198,103 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
-    # 'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-    # 'PAGE_SIZE': 100,  # Número de elementos por página
+    'DEFAULT_CACHE_TIMEOUT': 300,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/minute',
+    },
+    'EXCEPTION_HANDLER': 'app.exception_handler.custom_exception_handler',
 }
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {module}.{funcName}:{lineno} - {message}',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+            'style': '{',
+        },
+        'simple': {
+            'format': '[{levelname}] {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
             'stream': sys.stdout,
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'app.log'),
+            'maxBytes': 10 * 1024 * 1024,  # 10MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'scraping_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'scraping.log'),
+            'maxBytes': 10 * 1024 * 1024,  # 10MB
+            'backupCount': 5,
+            'formatter': 'verbose',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
         },
-        'app': {  # Puedes reemplazar 'myapp' con el nombre de tu aplicación
-            'handlers': ['console'],
+        'app': {
+            'handlers': ['console', 'file'],
             'level': 'DEBUG',
-            'propagate': True,
+            'propagate': False,
+        },
+        'scraping': {
+            'handlers': ['console', 'scraping_file'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
+}
+
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://192.168.1.11:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://192.168.1.11:6379/1")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 7200
+CELERY_TASK_SOFT_TIME_LIMIT = 6600
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 10
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get("REDIS_URL", "redis://192.168.1.11:6379/2"),
+        "OPTIONS": {
+            "db": 2,
+        },
+        "KEY_PREFIX": "novelas",
+        "TIMEOUT": 300,
+    }
+}
+
+CELERY_BEAT_SCHEDULE = {
+    "scrape-ongoing-novels": {
+        "task": "app.tasks.scrape_ongoing_novels",
+        "schedule": 86400.0,
+    },
+    "cleanup-stale-tasks": {
+        "task": "app.tasks.cleanup_stale_tasks",
+        "schedule": 1800.0,
+    },
+}
 }

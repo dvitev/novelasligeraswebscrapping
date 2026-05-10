@@ -1,0 +1,64 @@
+FROM python:3.12-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    PUID=1000 \
+    PGID=1000
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    gnupg \
+    curl \
+    xvfb \
+    xauth \
+    dbus-x11 \
+    libglib2.0-0 \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libatspi2.0-0 \
+    fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 -s /bin/bash worker \
+    && mkdir -p /home/worker \
+    && chown -R worker:worker /home/worker
+
+WORKDIR /home/worker
+
+COPY --chown=worker:worker requirements.selenium.txt .
+
+RUN pip install --no-cache-dir -r requirements.selenium.txt \
+    && rm -rf /root/.cache/pip
+
+COPY --chown=worker:worker entrypoint-worker.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+COPY --chown=worker:worker . .
+
+ENV DISPLAY=:99
+ENV C_FORCE_ROOT=true
+
+USER worker
+
+CMD ["/usr/local/bin/entrypoint.sh"]

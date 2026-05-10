@@ -1,0 +1,48 @@
+# Dependencies
+node_modules
+
+# Build output
+.next
+out
+dist
+build
+
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+
+# IDE
+.vscode
+.idea
+
+# Documentation
+README.md
+docs
+
+# Testing
+coverage
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+__tests__
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.pem
+.cache

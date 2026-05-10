@@ -14,17 +14,20 @@ function getStatusInfo(status) {
   return { className: "status-unknown", label: status || "Desconocido" };
 }
 
+const NO_COVER = "/imagenes/no-cover.svg";
+
 export default function NovelCard({ novela }) {
   const { className: statusClass, label: statusLabel } = getStatusInfo(
     novela.status
   );
+  const coverSrc = novela.imagen_url || NO_COVER;
 
   return (
     <Link href={`/novelas/${novela._id}`}>
       <div className="novel-card">
         <Image
           loader={imageLoader}
-          src={novela.imagen_url}
+          src={coverSrc}
           alt={`Portada de ${novela.nombre}`}
           width={170}
           height={245}

@@ -5,7 +5,7 @@ from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 
 
-MyResorcesAdmin = lambda model: type('subclass' + model.__name__, (resources.MdelResources,), {
+MyResorcesAdmin = lambda model: type('subclass' + model.__name__, (resources.ModelResource,), {
     'Meta': model._meta.model
 })
 

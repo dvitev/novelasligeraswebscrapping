@@ -30,7 +30,7 @@ class CapituloForm(forms.ModelForm):
 
 class ContenidoCapituloForm(forms.ModelForm):
     novela_id = forms.ChoiceField(choices=choice_novela)
-    Capitulo_id = forms.ChoiceField(choices=choice_capitulo)
+    capitulo_id = forms.ChoiceField(choices=choice_capitulo)
 
     class Meta:
         model = ContenidoCapitulo
