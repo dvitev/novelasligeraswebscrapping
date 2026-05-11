@@ -165,7 +165,7 @@ class ScrapingService:
 
     def _extraer_y_guardar_contenido(self, soup, selector_css, novela_id, capitulo_id,
                                       traducir_flag=False, delimitador=PARAGRAPH_DELIMITER):
-        div_contenido = soup.find('div', class_=selector_css)
+        div_contenido = soup.find('div', class_=selector_css) or soup.find('div', id=selector_css)
         if not div_contenido:
             logger.error(f"No se encontró contenido con selector {selector_css}.")
             self.open_banner(

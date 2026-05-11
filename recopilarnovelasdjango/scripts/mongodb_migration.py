@@ -18,6 +18,8 @@ class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
+        if isinstance(obj, ObjectId):
+            return str(obj)
         return super().default(obj)
 
 MONGODB_HOST = os.environ.get("MONGODB_HOST", "192.168.1.11")
@@ -124,7 +126,11 @@ class MongoMigrator:
             issues.append(f"{orphan_count} capítulos huérfanos encontrados")
         
         # Check referential integrity: contenidos -> capitulos (streaming)
-        capitulo_ids = set(self.db.app_capitulo.distinct("_id"))
+        capitulo_ids = set()
+        cursor = self.db.app_capitulo.find({}, {"_id": 1}).batch_size(batch_size)
+        for doc in cursor:
+            capitulo_ids.add(doc["_id"])
+        
         orphan_cont_count = 0
         
         cursor = self.db.app_contenidocapitulo.find(
@@ -156,55 +162,126 @@ class MongoMigrator:
             return True
     
     def import_with_indexes(self):
-        """Phase 3: Import with optimized indexes"""
+        """Phase 3: Manage indexes - verify, fix if wrong, create if missing"""
         print("\n" + "=" * 60)
-        print("FASE 3: IMPORTANDO CON ÍNDICES")
+        print("FASE 3: GESTIONANDO INDICES")
         print("=" * 60)
         
-        indexes = [
-            # app_novela indexes
-            ([("sitio_id", 1)], "idx_novela_sitio"),
-            ([("nombre", "text")], "idx_novela_nombre_text"),
-            ([("genero", 1)], "idx_novela_genero"),
-            ([("sitio_id", 1), ("genero", 1)], "idx_novela_sitio_genero"),
-            ([("sitio_id", 1), ("updated_at", -1)], "idx_novela_sitio_updated"),
-            ([("nombre", 1)], "idx_novela_nombre_es", {"collation": {"locale": "es", "strength": 2}}),
-            
-            # app_capitulo indexes
-            ([("novela_id", 1)], "idx_capitulo_novela"),
-            ([("novela_id", 1), ("created_at", -1)], "idx_capitulo_novela_fecha"),
-            
-            # app_contenidocapitulo indexes
-            ([("novela_id", 1)], "idx_contenido_novela"),
-            ([("capitulo_id", 1)], "idx_contenido_capitulo"),
-        ]
+        # Definición completa de índices esperados por colección
+        expected_indexes = {
+            "app_novela": [
+                ([("sitio_id", 1)], "idx_novela_sitio"),
+                ([("nombre", "text")], "idx_novela_nombre_text"),
+                ([("genero", 1)], "idx_novela_genero"),
+                ([("sitio_id", 1), ("genero", 1)], "idx_novela_sitio_genero"),
+                ([("sitio_id", 1), ("updated_at", -1)], "idx_novela_sitio_updated"),
+                ([("nombre", 1)], "idx_novela_nombre_es", {"collation": {"locale": "es", "strength": 2}}),
+            ],
+            "app_capitulo": [
+                ([("novela_id", 1)], "idx_capitulo_novela"),
+                ([("novela_id", 1), ("created_at", 1)], "idx_capitulo_novela_fecha"),
+            ],
+            "app_contenidocapitulo": [
+                ([("novela_id", 1)], "idx_contenido_novela"),
+                ([("capitulo_id", 1)], "idx_contenido_capitulo"),
+            ],
+            "app_sitio": [],
+            "app_estructurasitio": [],
+        }
         
-        print("  Creando índices...")
-        for idx_spec in indexes:
-            keys = idx_spec[0]
-            name = idx_spec[1]
-            options = idx_spec[2] if len(idx_spec) > 2 else {}
-            
-            try:
-                # Determine collection from index name
-                if "novela" in name:
-                    coll = self.db.app_novela
-                elif "capitulo" in name:
-                    coll = self.db.app_capitulo
-                elif "contenido" in name:
-                    coll = self.db.app_contenidocapitulo
-                elif "sitio" in name:
-                    coll = self.db.app_sitio
-                else:
-                    continue
+        created = 0
+        fixed = 0
+        skipped = 0
+        errors = 0
+        
+        for coll_name, indexes in expected_indexes.items():
+            if not indexes:
+                print(f"\n  Coleccion {coll_name}: sin indices requeridos")
+                continue
                 
-                coll.create_index(keys, name=name, **options)
-                print(f"    ✓ Índice {name}")
-            except Exception as e:
-                print(f"    ⚠️ Índice {name}: {e}")
+            print(f"\n  Procesando coleccion: {coll_name}")
+            print(f"  Indices esperados: {len(indexes)}")
+            
+            coll = self.db[coll_name]
+            existing_indexes = coll.index_information()
+            print(f"  Indices existentes: {len(existing_indexes)}")
+            
+            # Build a map of existing indexes by key pattern
+            existing_by_keys = {}
+            for idx_name, idx_info in existing_indexes.items():
+                if 'key' in idx_info:
+                    key_pattern = [(k, v) for k, v in idx_info['key']]
+                    existing_by_keys[tuple(key_pattern)] = idx_name
+            
+            for idx_spec in indexes:
+                keys = idx_spec[0]
+                name = idx_spec[1]
+                options = idx_spec[2] if len(idx_spec) > 2 else {}
+                key_tuple = tuple(keys)
+                
+                try:
+                    # Check 1: Index with correct name exists
+                    if name in existing_indexes:
+                        idx_info = existing_indexes[name]
+                        existing_keys = [(k, v) for k, v in idx_info.get('key', [])]
+                        
+                        if existing_keys == keys:
+                            print(f"    [OK] {name}: correcto")
+                            skipped += 1
+                            continue
+                        else:
+                            # Name exists but keys are different - DROP and RECREATE
+                            print(f"    [FIX] {name}: campos incorrectos {existing_keys} -> {keys}")
+                            print(f"      -> Eliminando indice incorrecto...")
+                            coll.drop_index(name)
+                            coll.create_index(keys, name=name, **options)
+                            print(f"      -> [OK] Indice corregido")
+                            fixed += 1
+                            continue
+                    
+                    # Check 2: Same keys exist with different name
+                    if key_tuple in existing_by_keys:
+                        existing_name = existing_by_keys[key_tuple]
+                        if existing_name == "_id":
+                            # Special case: don't touch _id index
+                            print(f"    [WARN] {name}: conflicto con indice _id, creando con nombre alternativo...")
+                            coll.create_index(keys, name=name, **options)
+                            created += 1
+                        else:
+                            # Keys exist with different name - DROP old and CREATE with correct name
+                            print(f"    [WARN] {name}: ya existe como '{existing_name}'")
+                            print(f"      -> Eliminando indice '{existing_name}'...")
+                            coll.drop_index(existing_name)
+                            coll.create_index(keys, name=name, **options)
+                            print(f"      -> [OK] Indice renombrado a {name}")
+                            fixed += 1
+                        continue
+                    
+                    # Check 3: Index doesn't exist - CREATE
+                    print(f"    -> Creando {name}...")
+                    coll.create_index(keys, name=name, **options)
+                    print(f"      -> [OK] Indice creado")
+                    created += 1
+                    
+                except Exception as e:
+                    errors += 1
+                    print(f"    [ERROR] {name}: {e}")
         
-        print("\n✓ Índices creados exitosamente")
-        return True
+        print("\n" + "=" * 60)
+        print("RESUMEN DE INDICES")
+        print("=" * 60)
+        print(f"  [OK] Creados:    {created}")
+        print(f"  [FIX] Corregidos: {fixed}")
+        print(f"  [SKIP] Saltados:  {skipped}")
+        print(f"  [ERROR] Errores:  {errors}")
+        print("=" * 60)
+        
+        if errors == 0:
+            print("\n[OK] Todos los indices verificados/creados exitosamente")
+        else:
+            print(f"\n[WARN] {errors} indice(s) fallaron - revisar logs")
+        
+        return errors == 0
     
     def create_rollback_script(self):
         """Generate rollback script"""
