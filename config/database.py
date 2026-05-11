@@ -24,7 +24,14 @@ class Database:
             return
         self._uri = uri or MONGO_URI
         self._db_name = db_name or DB_NAME
-        self._client = MongoClient(self._uri, serverSelectionTimeoutMS=5000)
+        self._client = MongoClient(
+            self._uri,
+            serverSelectionTimeoutMS=5000,
+            maxPoolSize=50,
+            minPoolSize=10,
+            maxIdleTimeMS=30000,
+            waitQueueTimeoutMS=5000,
+        )
         self._db = self._client[self._db_name]
         self._initialized = True
         logger.info(f"MongoDB conectado a {self._uri}/{self._db_name}")
@@ -50,18 +57,38 @@ class Database:
         """Crea índices para optimizar consultas frecuentes."""
         try:
             self.novelas.create_index(
-                [("sitio_id", ASCENDING), ("nombre", ASCENDING)],
-                name="idx_sitio_nombre",
+                [("sitio_id", ASCENDING)],
+                name="idx_novela_sitio",
+                background=True,
+            )
+            self.novelas.create_index(
+                [("sitio_id", ASCENDING), ("_id", ASCENDING)],
+                name="idx_sitio_id_paginacion",
+                background=True,
+            )
+            self.novelas.create_index(
+                [("nombre", "text")],
+                name="idx_novela_nombre_text",
+                background=True,
+            )
+            self.capitulos.create_index(
+                [("novela_id", ASCENDING)],
+                name="idx_capitulo_novela",
                 background=True,
             )
             self.capitulos.create_index(
                 [("novela_id", ASCENDING), ("created_at", ASCENDING)],
-                name="idx_novela_created",
+                name="idx_capitulo_novela_fecha",
                 background=True,
             )
             self.contenido_capitulos.create_index(
-                [("novela_id", ASCENDING), ("capitulo_id", ASCENDING)],
-                name="idx_novela_capitulo",
+                [("novela_id", ASCENDING)],
+                name="idx_contenido_novela",
+                background=True,
+            )
+            self.contenido_capitulos.create_index(
+                [("capitulo_id", ASCENDING)],
+                name="idx_contenido_capitulo",
                 background=True,
             )
             logger.info("Índices MongoDB verificados/creados.")

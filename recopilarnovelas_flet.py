@@ -171,6 +171,13 @@ def main(page: ft.Page):
     page.on_route_change = route_change
     page.go(page.route)
 
+    def on_close(event):
+        """Limpieza al cerrar la aplicación."""
+        repo.close()
+        db.close()
+
+    page.on_close = on_close
+
 
 if __name__ == "__main__":
     ft.app(target=main)

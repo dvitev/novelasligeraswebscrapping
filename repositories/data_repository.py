@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from bson.objectid import ObjectId
 
 from config.constants import NOVELAS_POR_PAGINA
@@ -12,6 +13,7 @@ class DataRepository:
 
     def __init__(self, db):
         self.db = db
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
     # ------------------------------------------------------------------
     # Sitios
@@ -46,7 +48,7 @@ class DataRepository:
             total_novelas = self.db.novelas.count_documents(filtro)
             novelas_cursor = (
                 self.db.novelas
-                .find(filtro)
+                .find(filtro, {'_id': 1, 'nombre': 1, 'imagen_url': 1, 'genero': 1, 'estado': 1, 'status': 1})
                 .skip(skip)
                 .limit(por_pagina)
                 .sort('_id', 1)
@@ -62,11 +64,13 @@ class DataRepository:
     def load_novela_details(self, novela_id):
         """Retorna (novela_doc, lista_capitulos) ordenados por created_at."""
         try:
-            novela = self.db.novelas.find_one({'_id': ObjectId(novela_id)})
-            capitulos = list(
-                self.db.capitulos.find({'novela_id': novela_id}).sort('created_at', 1)
+            novela_future = self._executor.submit(
+                self.db.novelas.find_one, {'_id': ObjectId(novela_id)}
             )
-            return novela, capitulos
+            capitulos_future = self._executor.submit(
+                list, self.db.capitulos.find({'novela_id': novela_id}, {'_id': 1, 'nombre': 1, 'url': 1, 'created_at': 1}).sort('created_at', 1)
+            )
+            return novela_future.result(), capitulos_future.result()
         except Exception as e:
             logger.error(f"Error loading novela details: {e}")
             return None, []
@@ -74,10 +78,10 @@ class DataRepository:
     def load_ids_capitulos_novela(self, novela_id):
         """Retorna set de IDs de capítulos de una novela."""
         try:
-            return {
+            return set(
                 str(cap['_id'])
                 for cap in self.db.capitulos.find({'novela_id': novela_id}, {'_id': 1}).sort('created_at', 1)
-            }
+            )
         except Exception as e:
             logger.error(f"Error loading capitulo novela details: {e}")
             return set()
@@ -96,14 +100,14 @@ class DataRepository:
             return {}
 
     def load_ids_contenido_capitulos_novela(self, novela_id):
-        """Retorna set de IDs de capítulos con contenido descargado (O(1) lookup)."""
+        """Retorna set de IDs de capítulos con contenido descargado."""
         try:
-            return {
+            return set(
                 str(c['capitulo_id'])
                 for c in self.db.contenido_capitulos.find(
                     {'novela_id': novela_id}, {'capitulo_id': 1, '_id': 0}
-                ).sort('created_at', 1)
-            }
+                )
+            )
         except Exception as e:
             logger.error(f"Error loading ids contenido capitulos novela: {e}")
             return set()
@@ -127,8 +131,8 @@ class DataRepository:
         return {
             str(x['capitulo_id']): x['texto']
             for x in self.db.contenido_capitulos.find(
-                {'novela_id': str(novela_id)}
-            ).sort('created_at', 1)
+                {'novela_id': str(novela_id)}, {'capitulo_id': 1, 'texto': 1, '_id': 0}
+            )
         }
 
     # ------------------------------------------------------------------
@@ -162,3 +166,8 @@ class DataRepository:
         except Exception as e:
             logger.error(f"Error finding novela: {e}")
             return None
+
+    def close(self):
+        """Cierra el executor de hilos."""
+        if hasattr(self, '_executor') and self._executor:
+            self._executor.shutdown(wait=True)

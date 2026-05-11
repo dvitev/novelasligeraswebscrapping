@@ -153,7 +153,7 @@ class ScrapingService:
         elif sitio_id == DEVILNOVELS_SITIO_ID:
             self._extraer_y_guardar_contenido(
                 soup, 'dv-post-article', novela_id, capitulo_id,
-                traducir_flag=False, delimitador=PARAGRAPH_DELIMITER,
+                traducir_flag=False, delimitador=PARAGRAPH_DELIMITER,sitio_id=DEVILNOVELS_SITIO_ID,
             )
         else:
             logger.warning("Sitio no soportado para scraping.")
@@ -164,8 +164,11 @@ class ScrapingService:
             )
 
     def _extraer_y_guardar_contenido(self, soup, selector_css, novela_id, capitulo_id,
-                                      traducir_flag=False, delimitador=PARAGRAPH_DELIMITER):
+                                      traducir_flag=False, delimitador=PARAGRAPH_DELIMITER,sitio_id=None):
         div_contenido = soup.find('div', class_=selector_css) or soup.find('div', id=selector_css)
+        if sitio_id == DEVILNOVELS_SITIO_ID:
+            # En DevilNovels, el contenido real está dentro de un article específico dentro del div principal"
+            div_contenido = soup.find('article', class_=selector_css) or soup.find('article', id=selector_css)
         if not div_contenido:
             logger.error(f"No se encontró contenido con selector {selector_css}.")
             self.open_banner(
