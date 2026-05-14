@@ -24,7 +24,7 @@ load_dotenv()
 
 if os.name != 'nt':
     temp_dir = "~/_tmp"
-    os.makedirs(temp_dir)
+    os.makedirs(temp_dir) if not os.path.exists(temp_dir) else None
     os.environ["TMPDIR"] = temp_dir
 
 MONGO_URI = 'mongodb://192.168.1.11:27017/'
