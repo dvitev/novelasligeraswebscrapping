@@ -22,10 +22,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# --- Configurar directorio temporal personalizado ---
 if os.name != 'nt':
     temp_dir = "/home/dvitev/tmp"
-    os.makedirs(temp_dir) if not os.path.exists(temp_dir) else None
+    os.makedirs(temp_dir, mode=0o700, exist_ok=True)
     os.environ["TMPDIR"] = temp_dir
+    logger.info(f"Directorio temporal configurado: {temp_dir}")
 
 MONGO_URI = 'mongodb://192.168.1.11:27017/'
 DB_NAME = 'recopilarnovelas'
@@ -746,13 +748,24 @@ def main(page: ft.Page):
             logger.info("=" * 60)
             def run():
                 try:
+                    # --- Determinar ruta original de geckodriver ---
                     geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
-                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
-                    logger.info(f"→ GeckoDriver: {geckodriver_path}")
+                    original_geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
+                    logger.info(f"GeckoDriver original: {original_geckodriver_path}")
                     options = webdriver.FirefoxOptions()
                     options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
                     if os.name != 'nt':
                         options.binary_location = '/usr/bin/firefox'
+                        temp_geckodriver = os.path.join(temp_dir, geckodriver_filename)
+                        if not os.path.exists(temp_geckodriver) or os.path.getmtime(original_geckodriver_path) > os.path.getmtime(temp_geckodriver):
+                            shutil.copy2(original_geckodriver_path, temp_geckodriver)  # copy2 preserva metadatos
+                            os.chmod(temp_geckodriver, 0o755)  # asegurar ejecutable
+                            logger.info(f"GeckoDriver copiado a: {temp_geckodriver}")
+                        else:
+                            logger.info(f"Usando copia existente: {temp_geckodriver}")
+                        geckodriver_path = temp_geckodriver
+                    else:
+                        geckodriver_path = original_geckodriver_path  # Windows se queda como estaba
                     logger.info("→ Iniciando Firefox...")
                     driver = webdriver.Firefox(options=options, service=Service(geckodriver_path))
                     driver_instance[0] = driver
