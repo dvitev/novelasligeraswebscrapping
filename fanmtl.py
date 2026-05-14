@@ -17,6 +17,7 @@ import os
 import re
 import json
 import logging
+import shutil
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
 
