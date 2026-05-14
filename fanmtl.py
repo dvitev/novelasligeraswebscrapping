@@ -741,7 +741,8 @@ def main(page: ft.Page):
             logger.info("=" * 60)
             def run():
                 try:
-                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', 'geckodriver.exe')
+                    geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
+                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
                     logger.info(f"→ GeckoDriver: {geckodriver_path}")
                     options = webdriver.FirefoxOptions()
                     options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
@@ -786,7 +787,8 @@ def main(page: ft.Page):
             logger.info("=" * 60)
             def run():
                 try:
-                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', 'geckodriver.exe')
+                    geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
+                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
                     logger.info(f"→ GeckoDriver: {geckodriver_path}")
                     options = webdriver.FirefoxOptions()
                     options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
@@ -821,7 +823,8 @@ def main(page: ft.Page):
                             "color": AppColors.ACCENT_RED, "progress": False
                         })
                         return
-                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', 'geckodriver.exe')
+                    geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
+                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
                     logger.info(f"→ GeckoDriver: {geckodriver_path}")
                     options = webdriver.FirefoxOptions()
                     options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
@@ -856,7 +859,8 @@ def main(page: ft.Page):
                             "color": AppColors.ACCENT_RED, "progress": False
                         })
                         return
-                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', 'geckodriver.exe')
+                    geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
+                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
                     logger.info(f"→ GeckoDriver: {geckodriver_path}")
                     options = webdriver.FirefoxOptions()
                     options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
