@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 if os.name != 'nt':
-    temp_dir = "~/_tmp"
+    temp_dir = "/home/dvitev/tmp"
     os.makedirs(temp_dir) if not os.path.exists(temp_dir) else None
     os.environ["TMPDIR"] = temp_dir
 
