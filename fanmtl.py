@@ -57,6 +57,32 @@ except Exception as e:
     logger.error(f"❌ Error conectando a MongoDB: {e}")
     raise
 
+def instanciar_driver():
+    try:
+        geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
+        original_geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
+        logger.info(f"GeckoDriver original: {original_geckodriver_path}")
+        options = webdriver.FirefoxOptions()
+        options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+        if os.name != 'nt':
+            options.binary_location = '/usr/bin/firefox'
+            temp_geckodriver = os.path.join(temp_dir, geckodriver_filename)
+            if not os.path.exists(temp_geckodriver) or os.path.getmtime(original_geckodriver_path) > os.path.getmtime(temp_geckodriver):
+                shutil.copy2(original_geckodriver_path, temp_geckodriver)  # copy2 preserva metadatos
+                os.chmod(temp_geckodriver, 0o755)  # asegurar ejecutable
+                logger.info(f"GeckoDriver copiado a: {temp_geckodriver}")
+            else:
+                logger.info(f"Usando copia existente: {temp_geckodriver}")
+            geckodriver_path = temp_geckodriver
+        else:
+            geckodriver_path = original_geckodriver_path  # Windows se queda como estaba
+        logger.info("→ Iniciando Firefox...")
+        driver = webdriver.Firefox(options=options, service=Service(geckodriver_path))
+        return driver
+    except Exception as e:
+        logger.error(f"❌ Error instanciando WebDriver: {e}")
+        raise
+
 class AppColors:
     BG_DARK = '#0F172A'
     BG_ELEVATED = '#1E293B'
@@ -747,27 +773,8 @@ def main(page: ft.Page):
             logger.info("USUARIO: Actualizar CSV desde Web")
             logger.info("=" * 60)
             def run():
-                try:
-                    # --- Determinar ruta original de geckodriver ---
-                    geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
-                    original_geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
-                    logger.info(f"GeckoDriver original: {original_geckodriver_path}")
-                    options = webdriver.FirefoxOptions()
-                    options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-                    if os.name != 'nt':
-                        options.binary_location = '/usr/bin/firefox'
-                        temp_geckodriver = os.path.join(temp_dir, geckodriver_filename)
-                        if not os.path.exists(temp_geckodriver) or os.path.getmtime(original_geckodriver_path) > os.path.getmtime(temp_geckodriver):
-                            shutil.copy2(original_geckodriver_path, temp_geckodriver)  # copy2 preserva metadatos
-                            os.chmod(temp_geckodriver, 0o755)  # asegurar ejecutable
-                            logger.info(f"GeckoDriver copiado a: {temp_geckodriver}")
-                        else:
-                            logger.info(f"Usando copia existente: {temp_geckodriver}")
-                        geckodriver_path = temp_geckodriver
-                    else:
-                        geckodriver_path = original_geckodriver_path  # Windows se queda como estaba
-                    logger.info("→ Iniciando Firefox...")
-                    driver = webdriver.Firefox(options=options, service=Service(geckodriver_path))
+                try:                   
+                    driver = instanciar_driver()
                     driver_instance[0] = driver
                     logger.info("  ✓ Firefox iniciado")
                     scraper = FanmtlScraperAutomatico(driver, page.pubsub, {})
@@ -807,13 +814,7 @@ def main(page: ft.Page):
             logger.info("=" * 60)
             def run():
                 try:
-                    geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
-                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
-                    logger.info(f"→ GeckoDriver: {geckodriver_path}")
-                    options = webdriver.FirefoxOptions()
-                    options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-                    logger.info("→ Iniciando Firefox...")
-                    driver = webdriver.Firefox(options=options, service=Service(geckodriver_path))
+                    driver = instanciar_driver()
                     driver_instance[0] = driver
                     logger.info("  ✓ Firefox iniciado")
                     scraper = FanmtlScraperAutomatico(driver, page.pubsub, {})
@@ -843,13 +844,7 @@ def main(page: ft.Page):
                             "color": AppColors.ACCENT_RED, "progress": False
                         })
                         return
-                    geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
-                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
-                    logger.info(f"→ GeckoDriver: {geckodriver_path}")
-                    options = webdriver.FirefoxOptions()
-                    options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-                    logger.info("→ Iniciando Firefox...")
-                    driver = webdriver.Firefox(options=options, service=Service(geckodriver_path))
+                    driver = instanciar_driver()
                     driver_instance[0] = driver
                     logger.info("  ✓ Firefox iniciado")
                     scraper = FanmtlScraperAutomatico(driver, page.pubsub, {})
@@ -879,13 +874,7 @@ def main(page: ft.Page):
                             "color": AppColors.ACCENT_RED, "progress": False
                         })
                         return
-                    geckodriver_filename = 'geckodriver.exe' if os.name == 'nt' else 'geckodriver'
-                    geckodriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geckodriver', geckodriver_filename)
-                    logger.info(f"→ GeckoDriver: {geckodriver_path}")
-                    options = webdriver.FirefoxOptions()
-                    options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-                    logger.info("→ Iniciando Firefox...")
-                    driver = webdriver.Firefox(options=options, service=Service(geckodriver_path))
+                    driver = instanciar_driver()
                     driver_instance[0] = driver
                     logger.info("  ✓ Firefox iniciado")
                     scraper = FanmtlScraperAutomatico(driver, page.pubsub, {})
