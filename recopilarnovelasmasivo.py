@@ -1,21 +1,14 @@
 import asyncio
 import base64
-from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.common.by import By
 from google_trans_new import google_translator
-from langdetect import detect, DetectorFactory
 import translators as ts
 from bs4 import BeautifulSoup as bs
 from datetime import datetime
-import csv
 import time
-import pandas as pd
-from ebooklib import epub
-from uuid import uuid4
 import httpx
 import aiofiles
 import os
@@ -24,8 +17,8 @@ from urllib.parse import urlparse
 from fpdf import FPDF
 import logging
 import requests
-import os
 from dotenv import load_dotenv
+from ebooklib import epub
 
 
 # --- Logging Configuration ---
@@ -43,7 +36,7 @@ COLLECTION_NOVELAS = "app_novela"
 COLLECTION_CAPITULOS = "app_capitulo"
 COLLECTION_CONTENIDO_CAPITULOS = 'app_contenidocapitulo'
 
-# Initialize MongoDB client (asynchronous)
+# Initialize MongoDB client
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 collection_sitios = db[COLLECTION_SITIOS]
@@ -51,19 +44,20 @@ collection_novelas = db[COLLECTION_NOVELAS]
 collection_capitulos = db[COLLECTION_CAPITULOS]
 collection_contenido_capitulos = db[COLLECTION_CONTENIDO_CAPITULOS]
 
-# IDs de Sitios (Constantes para mejorar mantenibilidad)
+# IDs de Sitios
 FANMTL_SITIO_ID = '67de23f6e131d527f2995103'
 TUNOVELA_LIGERA_SITIO_ID = '680ecb15e1ce8081ecb8b4d1'
+DEVILNOVELS_SITIO_ID = '699910bb09d676d0eee6c8e3'
 
-# --- Límites de caracteres para servicios de traducción (ajusta según sea necesario) ---
+# --- Límites de caracteres para servicios de traducción ---
 CHARACTER_LIMITS = {
-    'google': 4500,
-    'google_new': 4500,
-    'bing': 4500,
+    'google': 5000,
+    'google_new': 5000,
+    'bing': 5000,
 }
 
 # --- Additional Constants ---
-DEFAULT_SLEEP_TIME = 2
+DEFAULT_SLEEP_TIME = 3
 PARAGRAPH_DELIMITER = "---PARAGRAPH_DELIMITER---"
 TEMP_IMAGE_FILENAME = "imagen_descargada.jpg"
 PINGO_FONT_PATH = os.path.join(os.getcwd(), 'recopilarnovelasdjango', 'static', 'fonts', 'Poppins-Regular.ttf')
@@ -92,7 +86,7 @@ class PDF(FPDF):
         self.chapter_title(title)
         self.chapter_body(texto)
 
-async def traducir(texto: str) -> str:
+def traducir(texto: str) -> str:
     """Traduce texto usando múltiples servicios de traducción"""
     translators = [
         ('google', lambda t: ts.translate_text(t, translator='google', to_language='es')),
@@ -101,21 +95,20 @@ async def traducir(texto: str) -> str:
     ]
     for name, func in translators:
         try:
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, func, texto)
+            return func(texto)
         except Exception as e:
             logger.warning(f"Fallo en {name}: {e}")
             continue
     return texto
 
-async def traducir_texto_largo(texto: str, delimitador: str = PARAGRAPH_DELIMITER) -> str:
+def traducir_texto_largo(texto: str, delimitador: str = PARAGRAPH_DELIMITER) -> str:
     """
     Traduce texto largo dividiéndolo si excede el límite de caracteres del servicio.
     """
-    limit = min(CHARACTER_LIMITS.values(), default=4500)
+    limit = min(CHARACTER_LIMITS.values(), default=5000)
 
     if len(texto) <= limit:
-        return await traducir(texto)
+        return traducir(texto)
     else:
         partes = texto.split(delimitador)
         partes_traducidas = []
@@ -124,13 +117,13 @@ async def traducir_texto_largo(texto: str, delimitador: str = PARAGRAPH_DELIMITE
         for parte in partes:
             parte_con_delimitador = (delimitador if parte_actual else "") + parte
             if len(parte_actual + parte_con_delimitador) > limit and parte_actual:
-                partes_traducidas.append(await traducir(parte_actual))
+                partes_traducidas.append(traducir(parte_actual))
                 parte_actual = parte
             else:
                 parte_actual += parte_con_delimitador
 
         if parte_actual:
-            partes_traducidas.append(await traducir(parte_actual))
+            partes_traducidas.append(traducir(parte_actual))
 
         return "".join(partes_traducidas)
 
@@ -145,18 +138,20 @@ async def enviar_contenido_capitulo(novela_id, capitulo_id, texto_capitulo):
     result = collection_contenido_capitulos.insert_one(novel_data)
     return str(result.inserted_id)
 
-async def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_id, traducir_flag=False, delimitador='--- párrafo_delimiter ---'):
+async def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_id, traducir_flag=False, delimitador=PARAGRAPH_DELIMITER, sitio_id=None):
     """Función auxiliar para extraer y guardar contenido de capítulos."""
-    div_contenido = soup.find('div', class_=selector_css)
+    if sitio_id == DEVILNOVELS_SITIO_ID:
+        div_contenido = soup.find('article', class_=selector_css) or soup.find('article', id=selector_css)
+    else:
+        div_contenido = soup.find('div', class_=selector_css) or soup.find('div', id=selector_css)
+    
     if div_contenido:
         p_tags = div_contenido.find_all('p')
-        # Filtramos los párrafos que tienen texto
         p_tags_con_texto = [p for p in p_tags if p.getText().strip()]
         
         if p_tags_con_texto:
             textos_originales = [p.getText().strip() for p in p_tags_con_texto]
         else:
-            # Obtener HTML interno y dividir por <br>
             html_str = str(div_contenido)
             br_separated = html_str.split('<br/>')
             textos_originales = [
@@ -168,7 +163,7 @@ async def _extraer_y_guardar_contenido(soup, selector_css, novela_id, capitulo_i
             texto_capitulo = ""
             if traducir_flag:
                 texto_a_traducir = delimitador.join(textos_originales)
-                texto_traducido_completo = await traducir_texto_largo(texto_a_traducir, delimitador)
+                texto_traducido_completo = traducir_texto_largo(texto_a_traducir, delimitador)
                 texto_capitulo = f"<p>{texto_traducido_completo.replace(delimitador, '</p><p>')}</p>"
             else:
                 texto_capitulo = ''.join([f"<p>{texto}</p>" for texto in textos_originales])
@@ -189,24 +184,25 @@ async def manejar_driver_capitulos(driver, novela_id, capitulo_id):
         return
 
     sitio_id = novela_doc.get('sitio_id')
+    time.sleep(DEFAULT_SLEEP_TIME)
+    soup = bs(driver.page_source, 'html.parser')
 
     # FANMTL.com
     if FANMTL_SITIO_ID == sitio_id:
-        await asyncio.sleep(DEFAULT_SLEEP_TIME)
-        soup = bs(driver.page_source, 'html.parser')
         error = soup.find('p', _class='error')
         if not error:
             _id = await _extraer_y_guardar_contenido(soup, 'chapter-content', novela_id, capitulo_id, traducir_flag=True, delimitador=PARAGRAPH_DELIMITER)
         
-
     # tunovelaligera.com
     elif TUNOVELA_LIGERA_SITIO_ID == sitio_id:
-        await asyncio.sleep(DEFAULT_SLEEP_TIME)
-        soup = bs(driver.page_source, 'html.parser')
         _id = await _extraer_y_guardar_contenido(soup, 'entry-content_wrap', novela_id, capitulo_id, traducir_flag=False, delimitador=PARAGRAPH_DELIMITER)
 
+    # devilnovels.com
+    elif DEVILNOVELS_SITIO_ID == sitio_id:
+        _id = await _extraer_y_guardar_contenido(soup, 'dv-post-article', novela_id, capitulo_id, traducir_flag=False, delimitador=PARAGRAPH_DELIMITER, sitio_id=DEVILNOVELS_SITIO_ID)
+
     else:
-        logger.warning("Validar sitio para manejar driver no es FANMTL.com o tunovelaligera.com")
+        logger.warning("Validar sitio para manejar driver no es FANMTL.com, tunovelaligera.com o devilnovels.com")
 
 async def descargar_imagen(url):
     temp_dir = gettempdir()
@@ -267,8 +263,8 @@ async def crearepub(novela, capitulos):
         async with aiofiles.open(portada, 'rb') as f:
             book.set_cover('cover.jpg', await f.read())
 
-        nombre_traducido = await traducir(novela['nombre']) or novela['nombre']
-        sinopsis_traducida = await traducir(novela['sinopsis']) or novela['sinopsis']
+        nombre_traducido = traducir(novela['nombre']) or novela['nombre']
+        sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
 
         intro_html = f"""
         <h1>{nombre_traducido}</h1>
@@ -366,8 +362,8 @@ async def crearpdf(novela, capitulos):
         with open(portada, 'rb') as img_file:
             base64_cover = base64.b64encode(img_file.read()).decode('utf-8')
 
-        nombre_traducido = await traducir(novela['nombre']) or novela['nombre']
-        sinopsis_traducida = await traducir(novela['sinopsis']) or novela['sinopsis']
+        nombre_traducido = traducir(novela['nombre']) or novela['nombre']
+        sinopsis_traducida = traducir(novela['sinopsis']) or novela['sinopsis']
 
         pdf = PDF(orientation='P', unit='mm', format='A4')
         pdf.add_font('Poppins-Regular', '', PINGO_FONT_PATH, uni=True)
@@ -437,14 +433,13 @@ def load_ids_urls_capitulos_novela(novela_id):
 
 def load_ids_contenido_capitulos_novela(novela_id):
     try:
-        # Corrección: Usar argumentos separados para sort y projection correctamente
-        return [str(contenido['capitulo_id']) for contenido in collection_contenido_capitulos.find({'novela_id': novela_id}, {'capitulo_id': 1, '_id': 0}).sort('created_at', 1)]
+        return {str(contenido['capitulo_id']) for contenido in collection_contenido_capitulos.find({'novela_id': novela_id}, {'capitulo_id': 1, '_id': 0})}
     except Exception as e:
         logger.error(f"Error loading ids contenido capitulos novela details: {e}")
-        return [] # Devolver una lista vacía en caso de error
+        return set()
 
 def comparar_diccionarios(dic1, dic2):
-    return [x for x in dic1 if x not in dic2]
+    return list(set(dic1) - set(dic2))
 
 def instanciar_driver():
     options = webdriver.FirefoxOptions()
@@ -481,71 +476,150 @@ async def obtener_capitulos_webscrapping(cap_faltantes, novela_id):
         driver.quit()
         logger.info("WebDriver cerrado.")
 
-async def procesar_novelas_sitio(sitio_id_obj):
+async def procesar_novelas_sitio(sitio_id_obj, sitio_nombre):
     sitio_id = str(sitio_id_obj)
 
-    if sitio_id != FANMTL_SITIO_ID:
-        logger.info(f"Sitio {sitio_id} no coincide con FANMTL_SITIO_ID. Saltando.")
-        return
-
-    logger.info(f"Iniciando procesamiento para sitio_id: {sitio_id}")
+    logger.info(f"Iniciando procesamiento para sitio: {sitio_nombre} (ID: {sitio_id})")
 
     total_novelas = collection_novelas.count_documents({'sitio_id': sitio_id})
-    logger.info(f"Total novelas encontradas para procesar: {total_novelas}")
+    logger.info(f"Total novelas encontradas: {total_novelas}")
 
     cursor = collection_novelas.find({'sitio_id': sitio_id}, {'_id': 1, 'nombre': 1}).sort('_id', 1)
     novelas_list = []
     for novela in cursor:
         novelas_list.append({'_id': novela['_id'], 'nombre': novela['nombre']})
 
+    novelas_procesadas = 0
+    novelas_excluidas = 0
+    novelas_con_faltantes = 0
+
     for novela_doc in novelas_list:
         novela_id = str(novela_doc['_id'])
         nombre_novela = novela_doc['nombre']
+        
+        if novela_id in NOVELAS_EXLUIDAS:
+            logger.info(f"Novela excluida por configuracion: {nombre_novela}")
+            novelas_excluidas += 1
+            continue
+            
         logger.info(f"Procesando novela: {novela_id} - {nombre_novela}")
-        if novela_id not in NOVELAS_EXLUIDAS:
-            try:
-                novela_completa, capitulos_lista = load_novela_details(novela_id)
-                if not novela_completa:
-                    logger.error(f"No se encontró la novela completa para ID {novela_id}. Saltando.")
-                    continue
-
-                capitulos_dictionary = load_ids_urls_capitulos_novela(novela_id)
-                contenido_capitulos_ids = load_ids_contenido_capitulos_novela(novela_id)
-
-                if not capitulos_dictionary:
-                    logger.warning(f"No se encontraron capítulos para la novela {novela_id}. Saltando.")
-                    continue
-
-                capitulos_faltantes_ids = comparar_diccionarios(
-                    list(capitulos_dictionary.keys()),
-                    contenido_capitulos_ids
-                )
-
-                if capitulos_faltantes_ids:
-                    logger.info(f"Encontrados {len(capitulos_faltantes_ids)} capítulos faltantes para '{nombre_novela}'.")
-                    await obtener_capitulos_webscrapping(capitulos_faltantes_ids, novela_id)
-                    logger.info(f"Iniciando generación de archivos para '{nombre_novela}'.")
-                    await crearepub(novela_completa, capitulos_lista)
-                    await crearpdf(novela_completa, capitulos_lista)
-                    logger.info(f"Generación de archivos completada para '{nombre_novela}'.")
-                else:
-                    logger.info(f"No hay capítulos faltantes para '{nombre_novela}'.")
-                
-                
-
-            except Exception as e:
-                logger.error(f"Error procesando novela {novela_id} ('{nombre_novela}'): {e}")
+        
+        try:
+            novela_completa, capitulos_lista = load_novela_details(novela_id)
+            if not novela_completa:
+                logger.error(f"No se encontró la novela completa para ID {novela_id}. Saltando.")
                 continue
 
-    logger.info(f"Finalizado procesamiento para sitio_id: {sitio_id}")
+            capitulos_dictionary = load_ids_urls_capitulos_novela(novela_id)
+            contenido_capitulos_ids = load_ids_contenido_capitulos_novela(novela_id)
+
+            if not capitulos_dictionary:
+                logger.warning(f"No se encontraron capítulos para la novela {novela_id}. Saltando.")
+                continue
+
+            todos_caps_ids = list(capitulos_dictionary.keys())
+            capitulos_faltantes_ids = comparar_diccionarios(todos_caps_ids, contenido_capitulos_ids)
+
+            if capitulos_faltantes_ids:
+                logger.info(f"Encontrados {len(capitulos_faltantes_ids)} capítulos faltantes para '{nombre_novela}'.")
+                await obtener_capitulos_webscrapping(capitulos_faltantes_ids, novela_id)
+                logger.info(f"Iniciando generación de archivos para '{nombre_novela}'.")
+                await crearepub(novela_completa, capitulos_lista)
+                await crearpdf(novela_completa, capitulos_lista)
+                logger.info(f"Generación de archivos completada para '{nombre_novela}'.")
+                novelas_con_faltantes += 1
+            else:
+                logger.info(f"Novela completa - Todos los capítulos recopilados para '{nombre_novela}'. Excluyendo.")
+                novelas_excluidas += 1
+            
+            novelas_procesadas += 1
+
+        except Exception as e:
+            logger.error(f"Error procesando novela {novela_id} ('{nombre_novela}'): {e}")
+            continue
+
+    logger.info(f"=== Resumen para {sitio_nombre} ===")
+    logger.info(f"Novelas procesadas: {novelas_procesadas}")
+    logger.info(f"Novelas con capítulos faltantes: {novelas_con_faltantes}")
+    logger.info(f"Novelas excluidas (completas): {novelas_excluidas}")
+    logger.info(f"Finalizado procesamiento para sitio: {sitio_nombre}")
+
+def mostrar_menu_sitios():
+    """Muestra los sitios disponibles y permite elegir uno para procesar."""
+    sitios = list(collection_sitios.find({}, {'_id': 1, 'nombre': 1, 'url': 1}))
+    
+    if not sitios:
+        logger.error("No se encontraron sitios registrados en la base de datos.")
+        return None
+    
+    print("\n" + "="*60)
+    print("📚 RECOPILADOR DE NOVELAS - Selección de Sitio")
+    print("="*60)
+    print("\nSitios disponibles:")
+    print("-"*60)
+    
+    for i, sitio in enumerate(sitios, 1):
+        sitio_id = str(sitio['_id'])
+        nombre = sitio.get('nombre', 'Sin nombre')
+        url = sitio.get('url', 'Sin URL')
+        print(f"  {i}. {nombre}")
+        print(f"     ID: {sitio_id}")
+        print(f"     URL: {url}")
+        print()
+    
+    print("-"*60)
+    print("0. Salir")
+    print("="*60)
+    
+    while True:
+        try:
+            opcion = input("\nSeleccione el número del sitio a procesar (0 para salir): ").strip()
+            if opcion == '0':
+                return None
+            
+            opcion_int = int(opcion)
+            if 1 <= opcion_int <= len(sitios):
+                sitio_seleccionado = sitios[opcion_int - 1]
+                print(f"\n✅ Sitio seleccionado: {sitio_seleccionado.get('nombre', 'Sin nombre')}")
+                return sitio_seleccionado
+            else:
+                print(f"❌ Opción inválida.Ingrese un número entre 1 y {len(sitios)}, o 0 para salir.")
+        except ValueError:
+            print("❌ Opción inválida. Ingrese un número válido.")
+        except KeyboardInterrupt:
+            print("\n\nOperación cancelada por el usuario.")
+            return None
+
 
 async def main():
-    for sitio in collection_sitios.find():
-        sitio_id = sitio.get('_id')
-        if sitio_id:
-            await procesar_novelas_sitio(sitio_id)
-        else:
-            logger.warning("Documento de sitio encontrado sin '_id'. Saltando.")
+    """Función principal que permite elegir el sitio a procesar desde terminal."""
+    print("\n" + "="*60)
+    print("🚀 Iniciando Recopilador de Novelas")
+    print("="*60)
+    
+    sitio_seleccionado = mostrar_menu_sitios()
+    
+    if not sitio_seleccionado:
+        print("\n👋 Saliendo del programa. ¡Hasta luego!")
+        return
+    
+    sitio_id = sitio_seleccionado.get('_id')
+    sitio_nombre = sitio_seleccionado.get('nombre', 'Sitio desconocido')
+    
+    if sitio_id:
+        try:
+            await procesar_novelas_sitio(sitio_id, sitio_nombre)
+            print("\n" + "="*60)
+            print("✅ Procesamiento completado exitosamente")
+            print("="*60)
+        except Exception as e:
+            logger.error(f"Error durante el procesamiento: {e}")
+            print("\n" + "="*60)
+            print("❌ Error durante el procesamiento. Revise el log para más detalles.")
+            print("="*60)
+    else:
+        logger.error("El sitio seleccionado no tiene un ID válido.")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
