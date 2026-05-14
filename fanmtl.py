@@ -22,13 +22,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- Configurar directorio temporal personalizado ---
-if os.name != 'nt':
-    temp_dir = "/home/dvitev/tmp"
-    os.makedirs(temp_dir, mode=0o700, exist_ok=True)
-    os.environ["TMPDIR"] = temp_dir
-    logger.info(f"Directorio temporal configurado: {temp_dir}")
-
 MONGO_URI = 'mongodb://192.168.1.11:27017/'
 DB_NAME = 'recopilarnovelas'
 SITIO_ID = '67de23f6e131d527f2995103'
@@ -36,6 +29,13 @@ INDICE_CONTINUACION = int(os.getenv('INDICE_CONTINUACION', 0))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# --- Configurar directorio temporal personalizado ---
+if os.name != 'nt':
+    temp_dir = "/home/dvitev/tmp"
+    os.makedirs(temp_dir, mode=0o700, exist_ok=True)
+    os.environ["TMPDIR"] = temp_dir
+    logger.info(f"Directorio temporal configurado: {temp_dir}")
 
 logger.info("=" * 60)
 logger.info("INICIALIZANDO FANMTL SCRAPER")
