@@ -22,6 +22,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+if os.name != 'nt':
+    temp_dir = "~/_tmp"
+    os.makedirs(temp_dir)
+    os.environ["TMPDIR"] = temp_dir
+
 MONGO_URI = 'mongodb://192.168.1.11:27017/'
 DB_NAME = 'recopilarnovelas'
 SITIO_ID = '67de23f6e131d527f2995103'
@@ -746,6 +751,8 @@ def main(page: ft.Page):
                     logger.info(f"→ GeckoDriver: {geckodriver_path}")
                     options = webdriver.FirefoxOptions()
                     options.set_preference('general.useragent.override', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+                    if os.name != 'nt':
+                        options.binary_location = '/usr/bin/firefox'
                     logger.info("→ Iniciando Firefox...")
                     driver = webdriver.Firefox(options=options, service=Service(geckodriver_path))
                     driver_instance[0] = driver
